@@ -1,0 +1,22 @@
+# 1. Môi trường ảo Python
+venv/
+.venv/
+env/
+ENV/
+
+# 2. File chứa API Key
+.env
+
+# 3. File cache của Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 4. File kết quả mô phỏng (tùy chọn ẩn bớt cho gọn repo)
+*.html
+*.png
+*.log
+
+# 5. Cấu hình IDE / Editor
+.vscode/
+.idea/

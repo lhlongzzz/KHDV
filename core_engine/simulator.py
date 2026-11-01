@@ -1,0 +1,142 @@
+from typing import List, Dict, Callable, Optional
+from core_engine.entities import Driver, Request, RequestState, DriverState
+from core_engine.map_network import RealRoadMap
+
+class SimulationEngine:
+    def __init__(self, road_map: RealRoadMap, drivers: List[Driver], default_speed: float = 8.33):
+        """
+        road_map: Đồ thị bản đồ thực tế từ OpenStreetMap.
+        drivers: Danh sách tài xế tham gia mô phỏng.
+        default_speed: Vận tốc di chuyển mặc định (m/s). 8.33 m/s ~ 30 km/h trong nội thành.
+        """
+        self.map = road_map
+        self.drivers = {d.driver_id: d for d in drivers}
+        self.pending_requests: List[Request] = []
+        self.active_requests: Dict[str, Request] = {}
+        self.completed_requests: List[Request] = []
+        self.cancelled_requests: List[Request] = []
+        self.current_time = 0.0
+        self.default_speed = default_speed
+        
+        # Lưu quãng đường đã đi được trên đoạn đường (u, v) hiện tại của từng tài xế
+        self.driver_edge_progress: Dict[str, float] = {d.driver_id: 0.0 for d in drivers}
+
+    def add_requests(self, new_requests: List[Request]):
+        self.pending_requests.extend(new_requests)
+
+    def step(self, dt: float, matching_function: Optional[Callable] = None):
+        """
+        Tiến hành 1 bước mô phỏng (dt giây).
+        """
+        self.current_time += dt
+
+        # 1. Hủy chuyến nếu khách hàng chờ gán xe quá thời hạn max_wait_time
+        remaining_pending = []
+        for req in self.pending_requests:
+            if self.current_time - req.request_time > req.max_wait_time:
+                req.status = RequestState.CANCELLED
+                self.cancelled_requests.append(req)
+            else:
+                remaining_pending.append(req)
+        self.pending_requests = remaining_pending
+
+        # 2. Thực thi thuật toán ghép cặp của Thành viên 2 (nếu có)
+        if matching_function and self.pending_requests:
+            idle_drivers = [d for d in self.drivers.values() if d.status == DriverState.IDLE]
+            if idle_drivers:
+                matches = matching_function(idle_drivers, self.pending_requests, self.map, self.current_time)
+                
+                for driver_id, req_id in matches:
+                    driver = self.drivers.get(driver_id)
+                    req = next((r for r in self.pending_requests if r.request_id == req_id), None)
+                    if not driver or not req:
+                        continue
+
+                    # Thiết lập trạng thái ghép chuyến
+                    driver.status = DriverState.EN_ROUTE_PICKUP
+                    driver.assigned_request = req
+                    
+                    # Tìm tuyến đường ngắn nhất từ vị trí hiện tại tới điểm đón
+                    path_to_pickup = self.map.get_shortest_path(driver.current_node, req.origin_node)
+                    driver.current_route = path_to_pickup
+                    
+                    req.status = RequestState.MATCHED
+                    req.matched_driver_id = driver_id
+                    
+                    self.active_requests[req.request_id] = req
+                    self.pending_requests.remove(req)
+                    self.driver_edge_progress[driver_id] = 0.0
+
+        # 3. Cập nhật vị trí di chuyển của tài xế trên các tuyến đường
+        for driver in self.drivers.values():
+            if driver.status == DriverState.IDLE or not driver.current_route:
+                continue
+
+            distance_to_move = self.default_speed * dt
+            self._move_driver_along_route(driver, distance_to_move)
+
+    def _move_driver_along_route(self, driver: Driver, distance_to_move: float):
+        """
+        Duyệt chuyển động của tài xế qua các giao lộ (Node-by-Node) trên tuyến đường.
+        """
+        remaining_move = distance_to_move
+
+        while remaining_move > 0 and len(driver.current_route) > 1:
+            u = driver.current_route[0]
+            v = driver.current_route[1]
+
+            # Lấy chiều dài (mét) của đoạn đường giữa 2 giao lộ u và v
+            edge_data = self.map.graph.get_edge_data(u, v)
+            if edge_data:
+                # Trường hợp MultiDiGraph lấy cạnh đầu tiên
+                first_key = list(edge_data.keys())[0]
+                edge_len = edge_data[first_key].get('length', 50.0)
+            else:
+                edge_len = 50.0
+
+            current_progress = self.driver_edge_progress[driver.driver_id]
+            dist_needed_to_v = edge_len - current_progress
+
+            if remaining_move >= dist_needed_to_v:
+                # Xe đi qua điểm v thành công
+                remaining_move -= dist_needed_to_v
+                driver.current_node = v
+                driver.current_route.pop(0)  # Loại bỏ node u vừa đi qua
+                self.driver_edge_progress[driver.driver_id] = 0.0
+            else:
+                # Xe đang di chuyển dở trên đoạn (u, v)
+                self.driver_edge_progress[driver.driver_id] += remaining_move
+                remaining_move = 0.0
+
+        # Khi danh sách tuyến đường chỉ còn 1 node -> Đã tới điểm mục tiêu
+        if len(driver.current_route) <= 1:
+            self._on_reach_destination(driver)
+
+    def _on_reach_destination(self, driver: Driver):
+        req = driver.assigned_request
+        if not req:
+            driver.status = DriverState.IDLE
+            driver.current_route = []
+            return
+
+        if driver.status == DriverState.EN_ROUTE_PICKUP:
+            # Vừa tới điểm đón -> Chuyển sang chở khách tới điểm trả
+            driver.status = DriverState.OCCUPIED
+            req.status = RequestState.PICKED_UP
+            
+            # Tính đường đi từ điểm đón tới điểm trả
+            route_to_dest = self.map.get_shortest_path(req.origin_node, req.destination_node)
+            driver.current_route = route_to_dest
+            self.driver_edge_progress[driver.driver_id] = 0.0
+            
+        elif driver.status == DriverState.OCCUPIED:
+            # Vừa tới điểm trả -> Hoàn thành chuyến xe
+            req.status = RequestState.COMPLETED
+            self.completed_requests.append(req)
+            if req.request_id in self.active_requests:
+                del self.active_requests[req.request_id]
+            
+            driver.status = DriverState.IDLE
+            driver.assigned_request = None
+            driver.current_route = []
+            self.driver_edge_progress[driver.driver_id] = 0.0
