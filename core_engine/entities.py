@@ -45,3 +45,9 @@ class Driver:
     assigned_request: Optional[Request] = None
     current_route: List[int] = field(default_factory=list)
     stop_queue: List[tuple] = field(default_factory=list)  # [(Request, "pickup"|"dropoff", node)] khi ghép chuyến chung
+
+    # Đo lường hiệu suất
+    total_busy_time: float = 0.0          # Tổng thời gian bận (đón khách hoặc chở khách), giây
+    total_passenger_time: float = 0.0     # Thời gian đang có khách trên xe, giây
+    total_distance: float = 0.0           # Tổng quãng đường di chuyển (mét)
+    total_passenger_distance: float = 0.0 # Quãng đường chở khách (mét)

@@ -1,4 +1,4 @@
-from typing import List, Dict, Callable, Optional
+from typing import List, Dict, Callable, Optional, Tuple
 from core_engine.entities import Driver, Request, RequestState, DriverState
 from core_engine.map_network import RealRoadMap
 
@@ -70,8 +70,13 @@ class SimulationEngine:
                     self.pending_requests.remove(req)
                     self.driver_edge_progress[driver_id] = 0.0
 
-        # 3. Cập nhật vị trí di chuyển của tài xế trên các tuyến đường
+        # 3. Cập nhật vị trí di chuyển và đo lường thời gian bận của tài xế
         for driver in self.drivers.values():
+            if driver.status != DriverState.IDLE:
+                driver.total_busy_time += dt
+                if driver.status == DriverState.OCCUPIED:
+                    driver.total_passenger_time += dt
+
             if driver.status == DriverState.IDLE or not driver.current_route:
                 continue
 
@@ -110,6 +115,12 @@ class SimulationEngine:
                 # Xe đang di chuyển dở trên đoạn (u, v)
                 self.driver_edge_progress[driver.driver_id] += remaining_move
                 remaining_move = 0.0
+
+        # Đo quãng đường thực tế đã di chuyển trong tick này
+        actual_moved = distance_to_move - remaining_move
+        driver.total_distance += actual_moved
+        if driver.status == DriverState.OCCUPIED:
+            driver.total_passenger_distance += actual_moved
 
         # Khi danh sách tuyến đường chỉ còn 1 node -> Đã tới điểm mục tiêu
         if len(driver.current_route) <= 1:
@@ -196,3 +207,60 @@ class SimulationEngine:
         onboard = any(r.status == RequestState.PICKED_UP for r, _, _ in driver.stop_queue)
         driver.status = DriverState.OCCUPIED if onboard else DriverState.EN_ROUTE_PICKUP
         self._head_to_next_stop(driver)
+
+    # ------------------------------------------------------------------ Hỗ trợ Web UI & Đo lường KPI
+    def get_driver_latlon(self, driver_id: str) -> Tuple[float, float]:
+        """Lấy tọa độ chính xác thời gian thực của tài xế (nội suy nếu đang di chuyển giữa 2 node)."""
+        driver = self.drivers.get(driver_id)
+        if not driver:
+            return (21.0285, 105.8542)
+        if len(driver.current_route) >= 2:
+            u = driver.current_route[0]
+            v = driver.current_route[1]
+            lat_u, lon_u = self.map.get_node_latlon(u)
+            lat_v, lon_v = self.map.get_node_latlon(v)
+            edge_data = self.map.graph.get_edge_data(u, v)
+            first_key = list(edge_data.keys())[0] if edge_data else None
+            edge_len = edge_data[first_key].get('length', 50.0) if first_key else 50.0
+            progress = self.driver_edge_progress.get(driver_id, 0.0)
+            fraction = min(max(progress / edge_len, 0.0), 1.0) if edge_len > 0 else 0.0
+            return (lat_u + (lat_v - lat_u) * fraction, lon_u + (lon_v - lon_u) * fraction)
+        return self.map.get_node_latlon(driver.current_node)
+
+    def get_kpis(self, total_generated: Optional[int] = None) -> dict:
+        """Tính toán đầy đủ các chỉ số KPI theo yêu cầu của đề tài."""
+        total = total_generated if total_generated is not None else (
+            len(self.completed_requests) + len(self.cancelled_requests) + len(self.active_requests) + len(self.pending_requests)
+        )
+        completed = len(self.completed_requests)
+        cancelled = len(self.cancelled_requests)
+        
+        waits = [r.pickup_time - r.request_time for r in self.completed_requests if r.pickup_time is not None]
+        avg_wait = sum(waits) / len(waits) if waits else 0.0
+        
+        cancel_rate = (cancelled / total * 100.0) if total > 0 else 0.0
+        completion_rate = (completed / total * 100.0) if total > 0 else 0.0
+        
+        # Driver utilization: tổng thời gian bận / (số tài xế * tổng thời gian mô phỏng)
+        num_drivers = len(self.drivers)
+        max_possible_time = num_drivers * self.current_time if self.current_time > 0 and num_drivers > 0 else 1.0
+        total_busy = sum(d.total_busy_time for d in self.drivers.values())
+        utilization = min(100.0, (total_busy / max_possible_time) * 100.0) if max_possible_time > 0 else 0.0
+        
+        total_dist_km = sum(d.total_distance for d in self.drivers.values()) / 1000.0
+        pax_dist_km = sum(d.total_passenger_distance for d in self.drivers.values()) / 1000.0
+        
+        return {
+            "total_requests": total,
+            "completed_requests": completed,
+            "cancelled_requests": cancelled,
+            "active_requests": len(self.active_requests),
+            "pending_requests": len(self.pending_requests),
+            "cancellation_rate": round(cancel_rate, 2),
+            "completion_rate": round(completion_rate, 2),
+            "avg_wait_time": round(avg_wait, 2),
+            "driver_utilization": round(utilization, 2),
+            "total_distance_km": round(total_dist_km, 2),
+            "passenger_distance_km": round(pax_dist_km, 2),
+            "current_time": round(self.current_time, 1),
+        }

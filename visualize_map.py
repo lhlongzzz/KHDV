@@ -22,19 +22,25 @@ def generate_interactive_html_map(
         print("Lỗi: Bản đồ không có dữ liệu giao lộ.")
         return
 
+    # Lấy API key từ biến môi trường nếu không truyền trực tiếp
+    if not carto_api_key:
+        carto_api_key = CARTO_API_KEY
+
     center_coords = road_map.get_node_latlon(road_map.nodes[0])
 
     # 1. Khởi tạo Tile bản đồ
+    # Nếu có API key Carto thì dùng Carto, nếu không có thì dùng OpenStreetMap chuẩn hoàn toàn MIỄN PHÍ không cần key
     if carto_api_key:
         tiles_url = f"https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png?api_key={carto_api_key}"
         attr = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         m = folium.Map(location=center_coords, zoom_start=14, tiles=tiles_url, attr=attr)
     else:
+        # OpenStreetMap chuẩn: ổn định nhất, không bao giờ yêu cầu API key, không bị lỗi CORS/ArcGIS
         m = folium.Map(
             location=center_coords,
             zoom_start=14,
-            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-            attr="Esri World Street Map"
+            tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         )
 
     # 2. Tạo Layer quản lý Vị trí Tài xế
@@ -42,10 +48,27 @@ def generate_interactive_html_map(
     for driver in drivers:
         lat, lon = road_map.get_node_latlon(driver.current_node)
         status_val = getattr(driver.status, 'value', str(driver.status))
+        
+        # Vận tốc di chuyển (km/h)
+        speed_design_kmh = round(getattr(driver, 'speed', 10.0) * 3.6, 1)  # Vận tốc thiết kế (~36 km/h)
+        current_speed_kmh = 0.0 if status_val == "IDLE" else round(getattr(driver, 'speed', 8.33) * 3.6, 1)
+        dist_km = getattr(driver, 'total_distance', 0.0) / 1000.0
+
+        popup_html = (
+            f"<div style='font-family:sans-serif; width:220px; line-height:1.5;'>"
+            f"<b style='font-size:14px; color:#00B14F;'>🚗 Tài xế: {driver.driver_id}</b><br>"
+            f"<b>Trạng thái:</b> {status_val}<br>"
+            f"<b>⚡ Tốc độ hiện tại:</b> <b style='color:#0969da; font-size:13px;'>{current_speed_kmh:.1f} km/h</b><br>"
+            f"<b>Vận tốc thiết kế:</b> {speed_design_kmh:.1f} km/h<br>"
+            f"<b>Quãng đường:</b> {dist_km:.2f} km<br>"
+            f"<b>Nút giao lộ:</b> {driver.current_node}"
+            f"</div>"
+        )
+
         folium.Marker(
             location=[lat, lon],
-            popup=folium.Popup(f"<b>Tài xế:</b> {driver.driver_id}<br><b>Trạng thái:</b> {status_val}", max_width=250),
-            tooltip=f"Tài xế {driver.driver_id}",
+            popup=folium.Popup(popup_html, max_width=260),
+            tooltip=f"Tài xế {driver.driver_id} ({current_speed_kmh:.0f} km/h)",
             icon=folium.Icon(color="blue", icon="car", prefix="fa")
         ).add_to(fg_drivers)
     fg_drivers.add_to(m)
@@ -91,15 +114,7 @@ def generate_interactive_html_map(
         path_nodes = road_map.get_shortest_path(req.origin_node, req.destination_node)
 
         if len(path_nodes) > 1:
-            # Lấy danh sách tọa độ (lat, lon) dọc theo lộ trình
-            route_coords = [road_map.get_node_latlon(node) for node in path_nodes]
-            dist_m = road_map.get_path_distance(path_nodes)
-
-            # Tính toán Tuyến đường thực tế bám theo đồ thị đường phố OpenStreetMap
-        path_nodes = road_map.get_shortest_path(req.origin_node, req.destination_node)
-
-        if len(path_nodes) > 1:
-            # LẤY TỌA ĐỘ HÌNH HỌC CHÍNH XÁC BÁM THEO MẶT ĐƯỜNG (Thay cho get_node_latlon đơn thuần)
+            # LẤY TỌA ĐỘ HÌNH HỌC CHÍNH XÁC BÁM THEO MẶT ĐƯỜNG
             route_coords = road_map.get_route_geometry(path_nodes)
             dist_m = road_map.get_path_distance(path_nodes)
 
