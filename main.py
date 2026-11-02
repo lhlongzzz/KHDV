@@ -1,4 +1,8 @@
+import random
+import sys
 from functools import partial
+
+import numpy as np
 
 from core_engine.entities import Driver
 from core_engine.map_network import RealRoadMap
@@ -6,10 +10,19 @@ from core_engine.demand_generator import DemandGenerator
 from core_engine.simulator import SimulationEngine
 from visualize_map import generate_interactive_html_map
 
-from matching.greedy import GreedyMatcher
+from matching import GreedyMatcher, HungarianMatcher, PoolingMatcher
 from adapter import run_matcher_on_sim
 
 if __name__ == "__main__":
+    # Chọn thuật toán: python main.py greedy | hungarian | pooling
+    MATCHERS = {"greedy": GreedyMatcher, "hungarian": HungarianMatcher, "pooling": PoolingMatcher}
+    matcher_name = sys.argv[1] if len(sys.argv) > 1 else "greedy"
+    if matcher_name not in MATCHERS:
+        sys.exit(f"Thuật toán không hợp lệ: {matcher_name}. Chọn một trong {list(MATCHERS)}")
+
+    random.seed(42)      # đặt seed TRƯỚC khi tạo tài xế để mọi lần chạy cùng kịch bản
+    np.random.seed(42)
+
     # 1. Tải bản đồ giao thông thực tế
     road_map = RealRoadMap(place_name="Hoan Kiem, Hanoi, Vietnam")
 
@@ -27,10 +40,10 @@ if __name__ == "__main__":
 
     # 5. Khởi tạo Thuật toán GreedyMatcher
     # Giới hạn khoảng cách đón tối đa = 3000 mét (3km)
-    greedy_matcher = GreedyMatcher(max_pickup_cost=3000.0)
+    matcher = MATCHERS[matcher_name](max_pickup_cost=3000.0)
 
     # Đóng gói matcher vào hàm callback dùng partial
-    matching_callback = partial(run_matcher_on_sim, greedy_matcher)
+    matching_callback = partial(run_matcher_on_sim, matcher)
 
     # 6. Vòng lặp mô phỏng
     dt = 1.0
@@ -38,7 +51,7 @@ if __name__ == "__main__":
     current_sim_time = 0.0
     all_generated_requests = []
 
-    print("\n--- BẮT ĐẦU MÔ PHỎNG VỚI GREEDY MATCHER ---")
+    print(f"\n--- BẮT ĐẦU MÔ PHỎNG VỚI {matcher_name.upper()} MATCHER ---")
 
     while current_sim_time < total_simulation_time:
         # Sinh yêu cầu mới
@@ -57,6 +70,9 @@ if __name__ == "__main__":
     print(f"Chuyến hoàn thành (COMPLETED): {len(sim.completed_requests)}")
     print(f"Chuyến bị hủy (CANCELLED):    {len(sim.cancelled_requests)}")
     print(f"Chuyến chưa hoàn thành:       {len(sim.active_requests) + len(sim.pending_requests)}")
+    waits = [r.pickup_time - r.request_time for r in sim.completed_requests if r.pickup_time is not None]
+    if waits:
+        print(f"Thời gian chờ đón trung bình:  {sum(waits) / len(waits):.1f} giây")
     print("===================================================")
 
     # 8. Xuất bản đồ tương tác Web HTML

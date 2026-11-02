@@ -1,33 +1,43 @@
 """Các kiểu dữ liệu chuẩn dùng chung cho mọi thuật toán ghép cặp.
 
 Quy ước thống nhất cho cả nhóm:
-- Toạ độ là tuple (x, y). Nếu dùng kinh/vĩ độ thì là (lat, lon) và dùng haversine_km.
-- Mọi id là chuỗi (str).
+- Vị trí (`Location`) là toạ độ tuple (x, y) / (lat, lon), HOẶC mã nút bản đồ (int/str),
+  ví dụ node id của OpenStreetMap. Thuật toán không tự diễn giải vị trí: chỉ truyền
+  nguyên xi cho `cost_fn`, nên vị trí phải hashable. Dùng toạ độ thì dùng euclidean/
+  haversine_km; dùng node id thì phải tự cung cấp `cost_fn` (ví dụ Dijkstra).
+- Mọi id (yêu cầu, tài xế) là chuỗi (str).
 - Hàm chi phí `cost_fn(a, b)` trả về chi phí đi từ a đến b (km hoặc phút).
   Có thể bất đối xứng (cost(a, b) != cost(b, a)); trả về math.inf nếu không đi được.
+  Phải "thuần": cùng đầu vào luôn cho cùng kết quả trong một lần gọi match().
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
 from math import asin, cos, hypot, inf, radians, sin, sqrt
-from typing import Callable, List, Sequence, Tuple, Union, Any
+from typing import Callable, List, Sequence, Tuple, Union
 
-# Hỗ trợ cả tọa độ (lat, lon) / (x, y) VÀ Node ID (int/str) từ OpenStreetMap
 Location = Union[Tuple[float, float], int, str]
+Point = Location          # tên cũ, giữ lại để code cũ không bị lỗi import
 CostFn = Callable[[Location, Location], float]
 
 
 # ---------------------------------------------------------------- hàm chi phí mẫu
 def euclidean(a: Location, b: Location) -> float:
-    """Khoảng cách đường chim bay trên mặt phẳng. Dùng để test và mô phỏng nhanh."""
+    """Khoảng cách đường chim bay trên mặt phẳng. Dùng để test và mô phỏng nhanh.
+
+    Với vị trí không phải toạ độ (node id): 0 nếu trùng nhau, ngược lại inf (không biết khoảng cách).
+    """
     if isinstance(a, tuple) and isinstance(b, tuple):
         return hypot(a[0] - b[0], a[1] - b[1])
     return 0.0 if a == b else inf
 
 
 def haversine_km(a: Location, b: Location) -> float:
-    """Khoảng cách trên mặt cầu (km). a, b là (lat, lon) tính bằng độ."""
+    """Khoảng cách trên mặt cầu (km). a, b là (lat, lon) tính bằng độ.
+
+    Với vị trí không phải toạ độ (node id): 0 nếu trùng nhau, ngược lại inf.
+    """
     if isinstance(a, tuple) and isinstance(b, tuple):
         lat1, lon1, lat2, lon2 = map(radians, (a[0], a[1], b[0], b[1]))
         h = sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2

@@ -40,3 +40,8 @@ class Driver:
     status: DriverState = DriverState.IDLE
     assigned_requests: List[Request] = field(default_factory=list)
     current_target: Optional[Tuple[float, float]] = None
+
+    # Thuộc tính simulator sử dụng (khai báo để không bị AttributeError khi tài xế chưa nhận khách)
+    assigned_request: Optional[Request] = None
+    current_route: List[int] = field(default_factory=list)
+    stop_queue: List[tuple] = field(default_factory=list)  # [(Request, "pickup"|"dropoff", node)] khi ghép chuyến chung

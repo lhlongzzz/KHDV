@@ -7,10 +7,23 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from math import inf, isfinite
-from typing import Sequence
+from typing import Dict, Optional, Sequence, Tuple
 
-from .models import (Assignment, CostFn, Driver, MatchResult, Request, Stop,
-                     StopType, euclidean, route_cost)
+from .models import (Assignment, CostFn, Driver, Location, MatchResult, Request,
+                     Stop, StopType, euclidean, route_cost)
+
+
+def memoize_cost_fn(cost_fn: CostFn) -> CostFn:
+    """Bọc cost_fn để mỗi cặp (a, b) chỉ tính một lần (dùng trong phạm vi một lần match())."""
+    cache: Dict[Tuple[Location, Location], float] = {}
+
+    def cached(a: Location, b: Location) -> float:
+        key = (a, b)
+        if key not in cache:
+            cache[key] = cost_fn(a, b)
+        return cache[key]
+
+    return cached
 
 
 class Matcher(ABC):
@@ -31,23 +44,49 @@ class Matcher(ABC):
                 idle_drivers=[d.id for d in free],
             )
 
-        result = self._match(list(requests), free, cost_fn)
-        self._check_output(result, requests, free)
+        cost_fn = memoize_cost_fn(cost_fn)        # mỗi cặp điểm chỉ tính một lần trong lần ghép này
+
+        # Yêu cầu có chặng đón -> trả không đi được (ví dụ đường một chiều) thì không ai
+        # phục vụ được: loại trước, để không giao khách đó cho tài xế rồi kẹt giữa đường.
+        servable = [r for r in requests if isfinite(cost_fn(r.pickup, r.dropoff))]
+        if not servable:
+            return MatchResult(
+                unmatched_requests=[r.id for r in requests],
+                idle_drivers=[d.id for d in free],
+            )
+
+        result = self._match(servable, free, cost_fn)
+        self._check_output(result, servable, free)
+        served = set(result.matched_request_ids)
+        result.unmatched_requests = [r.id for r in requests if r.id not in served]
         return result
 
     # ------------------------------------------------------------ lớp con cài đặt
     @abstractmethod
     def _match(self, requests: list[Request], drivers: list[Driver],
                cost_fn: CostFn) -> MatchResult:
-        """Nhận danh sách KHÔNG rỗng, tài xế đều rảnh. Trả về MatchResult."""
+        """Nhận danh sách KHÔNG rỗng, tài xế đều rảnh, mọi yêu cầu đều có chặng đón -> trả đi được.
+        `cost_fn` đã được ghi nhớ. Trả về MatchResult."""
 
     # ------------------------------------------------------------ tiện ích cho lớp con
+    def pickup_cost(self, driver: Driver, request: Request,
+                    cost_fn: CostFn) -> Optional[float]:
+        """Chi phí tài xế -> điểm đón, hoặc None nếu cặp không hợp lệ.
+
+        Không hợp lệ khi: khách đông hơn sức chứa, chi phí không hữu hạn
+        (inf/nan), hoặc vượt `max_pickup_cost`. Chỉ gọi cost_fn đúng một lần
+        (cost_fn có thể đắt, ví dụ Dijkstra trên đồ thị đường).
+        """
+        if request.passengers > driver.capacity:
+            return None
+        cost = cost_fn(driver.location, request.pickup)
+        if isfinite(cost) and cost <= self.max_pickup_cost:
+            return cost
+        return None
+
     def is_feasible(self, driver: Driver, request: Request, cost_fn: CostFn) -> bool:
         """Cặp (tài xế, yêu cầu) có hợp lệ không: đủ chỗ và trong ngưỡng đón."""
-        if request.passengers > driver.capacity:
-            return False
-        c = cost_fn(driver.location, request.pickup)
-        return isfinite(c) and c <= self.max_pickup_cost
+        return self.pickup_cost(driver, request, cost_fn) is not None
 
     @staticmethod
     def single_assignment(driver: Driver, request: Request, cost_fn: CostFn) -> Assignment:

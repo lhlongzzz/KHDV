@@ -1,5 +1,6 @@
 from math import inf
-from typing import List, Tuple, Dict
+from typing import Dict, List, Tuple
+
 from matching.base import Matcher
 from matching.models import Driver as AlgoDriver, Request as AlgoRequest
 from core_engine.entities import Driver, Request
@@ -16,7 +17,7 @@ def create_osm_cost_fn(road_map: RealRoadMap):
     def cost_fn(node_a: int, node_b: int) -> float:
         if node_a == node_b:
             return 0.0
-        
+
         pair = (node_a, node_b)
         if pair in cost_cache:
             return cost_cache[pair]
@@ -33,6 +34,18 @@ def create_osm_cost_fn(road_map: RealRoadMap):
     return cost_fn
 
 
+def get_cost_fn(road_map: RealRoadMap):
+    """Mỗi bản đồ chỉ tạo cost_fn MỘT lần và dùng lại ở mọi bước mô phỏng.
+
+    Trước đây cost_fn (và cache của nó) được tạo mới ở mỗi lần gọi matcher, tức mỗi giây mô phỏng,
+    nên cache bị bỏ đi liên tục và Dijkstra bị tính lại cho cùng một cặp node hàng nghìn lần.
+    Đồ thị đường không đổi trong suốt mô phỏng nên giữ cache lâu dài là an toàn.
+    """
+    if not hasattr(road_map, "_osm_cost_fn"):
+        road_map._osm_cost_fn = create_osm_cost_fn(road_map)
+    return road_map._osm_cost_fn
+
+
 def run_matcher_on_sim(
     matcher: Matcher,
     idle_drivers: List[Driver],
@@ -42,44 +55,42 @@ def run_matcher_on_sim(
 ) -> List[Tuple[str, str]]:
     """
     Hàm Wrapper bọc thuật toán để truyền trực tiếp vào `sim.step()`.
-    
+
     Trả về: Danh sách các cặp [(driver_id, request_id), ...]
+    Với Greedy/Hungarian phần tử là (driver_id, request_id). Với Pooling (một tài xế nhiều khách)
+    phần tử là (driver_id, [(request_id, "pickup"|"dropoff"), ...]) theo đúng thứ tự lộ trình.
     """
-    # 1. Chuyển đổi Driver -> AlgoDriver
     algo_drivers = [
         AlgoDriver(
             id=d.driver_id,
             location=d.current_node,
-            capacity=4,
+            capacity=d.capacity,                 # lấy theo tài xế thật, không gán cứng 4
             available=True
         )
         for d in idle_drivers
     ]
 
-    # 2. Chuyển đổi Request -> AlgoRequest
     algo_requests = [
         AlgoRequest(
             id=r.request_id,
             pickup=r.origin_node,
             dropoff=r.destination_node,
             time=r.request_time,
-            passengers=1
+            passengers=r.num_passengers          # lấy theo yêu cầu thật, không gán cứng 1
         )
         for r in pending_requests
     ]
 
-    # 3. Khởi tạo hàm cost_fn trên bản đồ OSMnx
-    cost_fn = create_osm_cost_fn(road_map)
-
-    # 4. Chạy thuật toán ghép cặp
+    cost_fn = get_cost_fn(road_map)
     match_result = matcher.match(algo_requests, algo_drivers, cost_fn)
 
-    # 5. Chuyển kết quả MatchResult về định dạng [(driver_id, request_id)] cho Simulator
     sim_matches = []
     for assignment in match_result.assignments:
-        driver_id = assignment.driver_id
-        # Mỗi assignment của Greedy/Hungarian chứa 1 request_id
-        for req_id in assignment.request_ids:
-            sim_matches.append((driver_id, req_id))
+        ids = assignment.request_ids
+        if len(ids) == 1:                       # Greedy / Hungarian: mỗi tài xế một khách
+            sim_matches.append((assignment.driver_id, ids[0]))
+        else:                                   # Pooling: giữ nguyên thứ tự đón/trả
+            stops = [(s.request_id, s.type.value) for s in assignment.stops]
+            sim_matches.append((assignment.driver_id, stops))
 
     return sim_matches

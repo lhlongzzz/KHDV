@@ -15,7 +15,7 @@ phương án tối ưu toàn cục (xem HungarianMatcher). Đây là baseline đ
 """
 from __future__ import annotations
 
-from math import inf, isfinite
+from math import inf
 from typing import Optional
 
 from .base import Matcher
@@ -34,7 +34,7 @@ class GreedyMatcher(Matcher):
             best: Optional[Driver] = None
             best_cost = inf
             for driver in pool:
-                cost = self._pickup_cost(driver, request, cost_fn)
+                cost = self.pickup_cost(driver, request, cost_fn)
                 if cost is None:
                     continue
                 if best is None or (cost, driver.id) < (best_cost, best.id):
@@ -45,17 +45,3 @@ class GreedyMatcher(Matcher):
                 pool.remove(best)
 
         return self.build_result(assignments, requests, drivers)
-
-    def _pickup_cost(self, driver: Driver, request: Request,
-                     cost_fn: CostFn) -> Optional[float]:
-        """Chi phí đón khách, hoặc None nếu cặp không hợp lệ.
-
-        Cùng điều kiện với Matcher.is_feasible nhưng chỉ gọi cost_fn một lần
-        (cost_fn có thể đắt, ví dụ Dijkstra trên đồ thị đường).
-        """
-        if request.passengers > driver.capacity:
-            return None
-        cost = cost_fn(driver.location, request.pickup)
-        if isfinite(cost) and cost <= self.max_pickup_cost:
-            return cost
-        return None

@@ -47,6 +47,9 @@ class SimulationEngine:
                 matches = matching_function(idle_drivers, self.pending_requests, self.map, self.current_time)
                 
                 for driver_id, req_id in matches:
+                    if isinstance(req_id, (list, tuple)):    # ghép chuyến chung: lộ trình nhiều điểm dừng
+                        self._assign_stops(driver_id, req_id)
+                        continue
                     driver = self.drivers.get(driver_id)
                     req = next((r for r in self.pending_requests if r.request_id == req_id), None)
                     if not driver or not req:
@@ -113,6 +116,9 @@ class SimulationEngine:
             self._on_reach_destination(driver)
 
     def _on_reach_destination(self, driver: Driver):
+        if driver.stop_queue:                       # đang chạy lộ trình nhiều điểm dừng
+            self._on_reach_stop(driver)
+            return
         req = driver.assigned_request
         if not req:
             driver.status = DriverState.IDLE
@@ -123,6 +129,7 @@ class SimulationEngine:
             # Vừa tới điểm đón -> Chuyển sang chở khách tới điểm trả
             driver.status = DriverState.OCCUPIED
             req.status = RequestState.PICKED_UP
+            req.pickup_time = self.current_time
             
             # Tính đường đi từ điểm đón tới điểm trả
             route_to_dest = self.map.get_shortest_path(req.origin_node, req.destination_node)
@@ -132,6 +139,7 @@ class SimulationEngine:
         elif driver.status == DriverState.OCCUPIED:
             # Vừa tới điểm trả -> Hoàn thành chuyến xe
             req.status = RequestState.COMPLETED
+            req.completion_time = self.current_time
             self.completed_requests.append(req)
             if req.request_id in self.active_requests:
                 del self.active_requests[req.request_id]
@@ -140,3 +148,51 @@ class SimulationEngine:
             driver.assigned_request = None
             driver.current_route = []
             self.driver_edge_progress[driver.driver_id] = 0.0
+
+    # ------------------------------------------------------------------ ghép chuyến chung (Ride-Pooling)
+    def _assign_stops(self, driver_id: str, stops: list):
+        """stops: [(request_id, "pickup"|"dropoff"), ...] theo đúng thứ tự thuật toán đã chọn."""
+        driver = self.drivers.get(driver_id)
+        pending = {r.request_id: r for r in self.pending_requests}
+        if not driver or not stops or driver.status != DriverState.IDLE \
+                or any(rid not in pending for rid, _ in stops):
+            return
+
+        driver.stop_queue = [
+            (pending[rid], kind, pending[rid].origin_node if kind == "pickup" else pending[rid].destination_node)
+            for rid, kind in stops
+        ]
+        driver.assigned_request = None
+        driver.status = DriverState.EN_ROUTE_PICKUP
+        for rid in {rid for rid, _ in stops}:
+            req = pending[rid]
+            req.status = RequestState.MATCHED
+            req.matched_driver_id = driver_id
+            self.active_requests[rid] = req
+            self.pending_requests.remove(req)
+        self._head_to_next_stop(driver)
+
+    def _head_to_next_stop(self, driver: Driver):
+        _, _, node = driver.stop_queue[0]
+        driver.current_route = self.map.get_shortest_path(driver.current_node, node)
+        self.driver_edge_progress[driver.driver_id] = 0.0
+
+    def _on_reach_stop(self, driver: Driver):
+        req, kind, _ = driver.stop_queue.pop(0)
+        if kind == "pickup":
+            req.status = RequestState.PICKED_UP
+            req.pickup_time = self.current_time
+        else:
+            req.status = RequestState.COMPLETED
+            req.completion_time = self.current_time
+            self.completed_requests.append(req)
+            self.active_requests.pop(req.request_id, None)
+
+        if not driver.stop_queue:
+            driver.status = DriverState.IDLE
+            driver.current_route = []
+            self.driver_edge_progress[driver.driver_id] = 0.0
+            return
+        onboard = any(r.status == RequestState.PICKED_UP for r, _, _ in driver.stop_queue)
+        driver.status = DriverState.OCCUPIED if onboard else DriverState.EN_ROUTE_PICKUP
+        self._head_to_next_stop(driver)
