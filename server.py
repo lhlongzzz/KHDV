@@ -10,10 +10,15 @@ Expose REST API & WebSocket streaming thời gian thực cho Web UI.
 """
 from __future__ import annotations
 
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import asyncio
 import json
 import os
-import sys
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -60,6 +65,7 @@ MATCHERS = {
 # ============================================================
 road_map: Optional[RealRoadMap] = None
 map_nodes_cache: Optional[List[dict]] = None
+main_loop: Optional[asyncio.AbstractEventLoop] = None
 
 sim_state = {
     "running": False,
@@ -87,7 +93,8 @@ os.makedirs(STATIC_DIR, exist_ok=True)
 # ============================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global road_map, map_nodes_cache
+    global road_map, map_nodes_cache, main_loop
+    main_loop = asyncio.get_running_loop()
     print("\n[Server] Đang nạp bản đồ giao thông Hoàn Kiếm, Hà Nội...")
     try:
         road_map = RealRoadMap(place_name="Hoan Kiem, Hanoi, Vietnam")
@@ -109,6 +116,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ============================================================
 # Snapshot Builder
@@ -132,7 +140,7 @@ def build_snapshot(sim: SimulationEngine, all_requests: List[Request]) -> dict:
 
         route_coords = []
         if len(d.current_route) > 1:
-            route_coords = [sim.map.get_node_latlon(node) for node in d.current_route[:8]]
+            route_coords = [sim.map.get_node_latlon(node) for node in d.current_route[:25]]
 
         passengers_onboard = []
         if d.assigned_request:
@@ -204,7 +212,7 @@ def build_snapshot(sim: SimulationEngine, all_requests: List[Request]) -> dict:
 
 
 # ============================================================
-# WebSocket Broadcast
+# WebSocket Broadcast (Thread-Safe)
 # ============================================================
 async def broadcast(message: dict):
     if not active_connections:
@@ -219,14 +227,17 @@ async def broadcast(message: dict):
     active_connections.difference_update(dead)
 
 
+def send_ws_event(message: dict):
+    """Gửi message tới WebSocket an toàn qua main event loop từ bất kỳ thread nào."""
+    if main_loop and main_loop.is_running() and active_connections:
+        asyncio.run_coroutine_threadsafe(broadcast(message), main_loop)
+
+
 # ============================================================
 # Vòng lặp mô phỏng chạy ngầm (Background Simulation Thread)
 # ============================================================
 def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, speed_mult: float, seed: int = 42):
     global road_map, sim_engine_ref, all_requests_ref
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
 
     stop_event.clear()
     pause_event.clear()
@@ -256,13 +267,13 @@ def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, 
     total_time = 3600.0  # Tối đa 1 tiếng mô phỏng
     last_broadcast_sim_time = 0.0
 
-    loop.run_until_complete(broadcast({
+    send_ws_event({
         "type": "sim_started",
         "strategy": strategy_key,
         "strategy_name": label,
         "num_drivers": num_drivers,
         "arrival_rate": arrival_rate,
-    }))
+    })
 
     while sim.current_time < total_time and not stop_event.is_set():
         if pause_event.is_set():
@@ -277,13 +288,13 @@ def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, 
             for r in new_reqs:
                 plat, plon = road_map.get_node_latlon(r.origin_node)
                 dlat, dlon = road_map.get_node_latlon(r.destination_node)
-                loop.run_until_complete(broadcast({
+                send_ws_event({
                     "type": "event_new_request",
                     "id": r.request_id,
                     "pickup": [plat, plon],
                     "dropoff": [dlat, dlon],
                     "time": round(r.request_time, 1),
-                }))
+                })
 
         # Bước mô phỏng
         prev_completed = len(sim.completed_requests)
@@ -294,22 +305,22 @@ def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, 
         # Bắn sự kiện chuyến hoàn thành / bị hủy nếu có thay đổi
         if len(sim.completed_requests) > prev_completed:
             for r in sim.completed_requests[prev_completed:]:
-                loop.run_until_complete(broadcast({
+                send_ws_event({
                     "type": "event_trip_completed",
                     "id": r.request_id,
                     "driver_id": r.matched_driver_id,
-                }))
+                })
         if len(sim.cancelled_requests) > prev_cancelled:
             for r in sim.cancelled_requests[prev_cancelled:]:
-                loop.run_until_complete(broadcast({
+                send_ws_event({
                     "type": "event_trip_cancelled",
                     "id": r.request_id,
-                }))
+                })
 
         # Gửi snapshot mỗi 1.0 giây thời gian mô phỏng
         if sim.current_time - last_broadcast_sim_time >= 1.0:
             snapshot = build_snapshot(sim, all_requests_ref)
-            loop.run_until_complete(broadcast(snapshot))
+            send_ws_event(snapshot)
             last_broadcast_sim_time = sim.current_time
 
         # Điều khiển tốc độ thực
@@ -320,11 +331,10 @@ def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, 
     # Kết thúc
     final_snapshot = build_snapshot(sim, all_requests_ref)
     final_snapshot["type"] = "sim_finished"
-    loop.run_until_complete(broadcast(final_snapshot))
+    send_ws_event(final_snapshot)
 
     sim_state["running"] = False
     sim_state["paused"] = False
-    loop.close()
 
 
 # ============================================================
@@ -335,7 +345,11 @@ async def get_index():
     index_file = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_file):
         return FileResponse(index_file)
-    return JSONResponse({"status": "ok", "app": "Ride-Hailing Simulator Hanoi"})
+    return JSONResponse({
+        "status": "ok",
+        "app": "Ride-Hailing Simulator Hanoi",
+        "message": "Không tìm thấy static/index.html. Vui lòng kiểm tra thư mục static."
+    })
 
 
 @app.get("/api/status")
@@ -357,7 +371,7 @@ async def get_map_data():
         return JSONResponse({"error": "Bản đồ chưa sẵn sàng"}, status_code=503)
     return {
         "center": [21.0285, 105.8542],
-        "zoom": 14,
+        "zoom": 15,
         "nodes": map_nodes_cache,
     }
 
@@ -439,10 +453,10 @@ async def run_benchmark_api(payload: dict):
 
     from main import run_single_simulation
     strategies = [
-        ("greedy", GreedyMatcher, "S1: Greedy"),
-        ("hungarian", HungarianMatcher, "S2: Hungarian"),
-        ("pooling", PoolingMatcher, "S3: Greedy+Pool"),
-        ("hungarian_pooling", HungarianPoolingMatcher, "S4: HU+Pool"),
+        ("greedy", GreedyMatcher, "S1: Greedy (Tham lam)"),
+        ("hungarian", HungarianMatcher, "S2: Hungarian (Gom lô)"),
+        ("pooling", PoolingMatcher, "S3: Greedy Pooling (Ghép chuyến)"),
+        ("hungarian_pooling", HungarianPoolingMatcher, "S4: Hungarian Pooling (Hungary+Ghép)"),
     ]
 
     results = []
@@ -484,6 +498,9 @@ async def websocket_simulation(websocket: WebSocket):
             "running": sim_state["running"],
             "strategy": sim_state["strategy"],
         }))
+        if sim_state["running"] and sim_engine_ref:
+            snapshot = build_snapshot(sim_engine_ref, all_requests_ref)
+            await websocket.send_text(json.dumps(snapshot, ensure_ascii=False))
         while True:
             data = await websocket.receive_text()
             if data == "ping":

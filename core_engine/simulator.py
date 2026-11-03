@@ -40,7 +40,7 @@ class SimulationEngine:
                 remaining_pending.append(req)
         self.pending_requests = remaining_pending
 
-        # 2. Thực thi thuật toán ghép cặp của Thành viên 2 (nếu có)
+        # 2. Thực thi thuật toán ghép cặp
         if matching_function and self.pending_requests:
             idle_drivers = [d for d in self.drivers.values() if d.status == DriverState.IDLE]
             if idle_drivers:

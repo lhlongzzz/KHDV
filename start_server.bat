@@ -13,5 +13,6 @@ echo  → Nhấn Ctrl+C để dừng server.
 echo =========================================================================
 echo.
 set PYTHONIOENCODING=utf-8
+start "" http://localhost:8000
 python server.py
 pause

@@ -13,9 +13,13 @@ __pycache__/
 *$py.class
 
 # 4. File kết quả mô phỏng (tùy chọn ẩn bớt cho gọn repo)
-*.html
+simulation_map*.html
 *.png
 *.log
+
+# Giữ lại các file giao diện web trong thư mục static/
+!static/
+!static/**
 
 # 5. Cấu hình IDE / Editor
 .vscode/
