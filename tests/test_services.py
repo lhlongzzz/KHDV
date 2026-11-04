@@ -1,4 +1,6 @@
 """Contract-level tests for independently replaceable application services."""
+import asyncio
+
 from services.contracts import DriverDTO, TripRequestDTO
 from services.base import ServiceResult
 from services.demand_service.contracts import DemandConfigDTO
@@ -144,3 +146,20 @@ def test_simulation_worker_reports_startup_failure_and_resets_running_state(monk
         "type": "sim_error",
         "error": "Map Service chưa sẵn sàng để khởi chạy mô phỏng",
     }]
+
+
+def test_pause_endpoint_pauses_and_resumes_existing_runtime(monkeypatch):
+    events = []
+    monkeypatch.setattr(server, "send_ws_event", events.append)
+    server.sim_state["running"] = True
+    server.pause_event.clear()
+
+    paused = asyncio.run(server.pause_simulation())
+    resumed = asyncio.run(server.pause_simulation())
+
+    assert paused == {"status": "paused"}
+    assert resumed == {"status": "resumed"}
+    assert events == [{"type": "sim_paused"}, {"type": "sim_resumed"}]
+    assert server.pause_event.is_set() is False
+    assert server.sim_state["paused"] is False
+    server.sim_state["running"] = False

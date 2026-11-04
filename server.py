@@ -178,6 +178,7 @@ def build_snapshot(sim: SimulationEngine, all_requests: List[Request]) -> dict:
             "dropoff_lat": round(dlat, 6),
             "dropoff_lon": round(dlon, 6),
             "wait_time": round(sim.current_time - r.request_time, 1),
+            "request_time": r.request_time,
         })
 
     active_data = []
@@ -238,8 +239,6 @@ def send_ws_event(message: dict):
 # Vòng lặp mô phỏng chạy ngầm (Background Simulation Thread)
 # ============================================================
 def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, speed_mult: float, seed: int = 42):
-    stop_event.clear()
-    pause_event.clear()
     sim_state["running"] = True
     sim_state["paused"] = False
 
@@ -360,6 +359,7 @@ async def get_status():
         "nodes_count": len(map_nodes_cache) if map_nodes_cache else 0,
         "running": sim_state["running"],
         "paused": sim_state["paused"],
+        "current_time": round(sim_engine_ref.current_time, 1) if sim_engine_ref else 0.0,
         "strategy": sim_state["strategy"],
         "speed_multiplier": sim_state["speed_multiplier"],
         "place": "Hoàn Kiếm, Hà Nội",
@@ -401,6 +401,8 @@ async def start_simulation(payload: dict):
         "speed_multiplier": speed_mult,
     })
 
+    stop_event.clear()
+    pause_event.clear()
     sim_thread = threading.Thread(
         target=simulation_worker,
         args=(strategy, num_drivers, arrival_rate, speed_mult, int(time.time())),
@@ -426,10 +428,12 @@ async def pause_simulation():
     if pause_event.is_set():
         pause_event.clear()
         sim_state["paused"] = False
+        send_ws_event({"type": "sim_resumed"})
         return {"status": "resumed"}
     else:
         pause_event.set()
         sim_state["paused"] = True
+        send_ws_event({"type": "sim_paused"})
         return {"status": "paused"}
 
 
@@ -450,7 +454,12 @@ async def run_benchmark_api(payload: dict):
 
     num_drivers = int(payload.get("num_drivers", 8))
     arrival_rate = float(payload.get("arrival_rate", 0.03))
-    sim_seconds = float(payload.get("sim_seconds", 900.0))  # 15 phút mô phỏng nhanh
+    sim_seconds = float(payload.get("sim_seconds", 1200.0))
+    if not 300 <= sim_seconds <= 7200:
+        return JSONResponse(
+            {"error": "Thời lượng benchmark phải từ 5 đến 120 phút mô phỏng"},
+            status_code=422,
+        )
     seed = int(payload.get("seed", 42))
 
     results = []
@@ -491,6 +500,7 @@ async def websocket_simulation(websocket: WebSocket):
             "type": "welcome",
             "map_loaded": road_map is not None,
             "running": sim_state["running"],
+            "paused": sim_state["paused"],
             "strategy": sim_state["strategy"],
         }))
         if sim_state["running"] and sim_engine_ref:

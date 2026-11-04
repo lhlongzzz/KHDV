@@ -194,6 +194,14 @@ html, body {
 #btnStop:hover {
   opacity: 0.9;
 }
+#btnPause {
+  background: #334155;
+  color: #fff;
+  display: none;
+}
+#btnPause:hover {
+  background: #475569;
+}
 #btnBenchmark {
   background: var(--grab-green);
   color: #fff;
@@ -1474,6 +1482,7 @@ button:focus-visible, input:focus-visible {
 
     <!-- Controls -->
     <button class="btn-ctrl" id="btnStart">Bắt đầu mô phỏng</button>
+    <button class="btn-ctrl" id="btnPause">Tạm dừng</button>
     <button class="btn-ctrl" id="btnStop">Dừng mô phỏng</button>
     <button class="btn-ctrl" id="btnBenchmark">So sánh chiến lược</button>
 
@@ -1506,7 +1515,7 @@ button:focus-visible, input:focus-visible {
             <div class="kpi-item">
               <span class="kpi-lbl">Thời gian đón TB</span>
               <span class="kpi-val green" id="kpiWait">—</span>
-              <span class="kpi-sub">Giây (từ đặt đến đón)</span>
+              <span class="kpi-sub">Giây; tính các chuyến đã đón</span>
             </div>
             <div class="kpi-item">
               <span class="kpi-lbl">Tỷ lệ hủy chuyến</span>
@@ -1641,9 +1650,20 @@ button:focus-visible, input:focus-visible {
       </div>
     </div>
 
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0;color:var(--text-secondary);font-size:12px;">
+      <label for="benchDurationMinutes">Thời lượng:</label>
+      <input id="benchDurationMinutes" type="number" value="20" min="5" max="120" step="5" style="width:76px;">
+      <span>phút mô phỏng mỗi chiến lược</span>
+      <label for="benchSeed" style="margin-left:8px;">Seed:</label>
+      <input id="benchSeed" type="number" value="42" step="1" style="width:82px;">
+    </div>
+    <p style="margin:0 0 12px;color:var(--text-secondary);font-size:12px;line-height:1.5;">
+      Một lượt phù hợp để xem thử, chưa đủ để kết luận khoa học. Hãy chạy lại nhiều seed với cùng cấu hình trước khi so sánh chính thức.
+    </p>
+
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
       <button class="btn-ctrl" id="btnRunBenchAction" style="background:var(--grab-green);color:#fff;">
-        Bắt đầu so sánh (20 phút mô phỏng)
+        Bắt đầu so sánh
       </button>
     </div>
 
@@ -1662,6 +1682,13 @@ let isRunning = false;
 let currentStrategy = "greedy";
 let speedMult = 2;
 let serverOnline = false;
+let simulationPaused = false;
+let liveClockAnchorTime = 0;
+let liveClockAnchorWall = performance.now();
+let liveClockRate = 0;
+let previousTickTime = null;
+let previousTickWall = null;
+let liveClockTimer = null;
 
 // Markers
 const driverMarkers = {};
@@ -1851,10 +1878,21 @@ function connectWebSocket() {
 }
 
 function handleServerMessage(msg) {
-  if (msg.type === "tick") {
+  if (msg.type === "welcome") {
+    if (msg.running) {
+      setRunningState(true);
+      setPausedState(Boolean(msg.paused));
+    }
+  } else if (msg.type === "tick") {
     renderTickData(msg);
   } else if (msg.type === "sim_started") {
+    setRunningState(true);
+    setPausedState(false);
     addFeedItem(`Bắt đầu mô phỏng: <strong>${msg.strategy_name}</strong>`);
+  } else if (msg.type === "sim_paused") {
+    setPausedState(true);
+  } else if (msg.type === "sim_resumed") {
+    setPausedState(false);
   } else if (msg.type === "event_new_request") {
     addFeedItem(`Yêu cầu mới <strong>${msg.id}</strong> vừa phát sinh`);
   } else if (msg.type === "event_trip_completed") {
@@ -1864,15 +1902,28 @@ function handleServerMessage(msg) {
   } else if (msg.type === "sim_finished") {
     setRunningState(false);
     addFeedItem(`Mô phỏng kết thúc.`);
+  } else if (msg.type === "sim_error") {
+    setRunningState(false);
+    addFeedItem(`Lỗi mô phỏng: <strong>${msg.error}</strong>`);
   }
 }
 
 function renderTickData(data) {
-  // Update clock
   const t = data.time;
-  const m = Math.floor(t / 60);
-  const s = Math.floor(t % 60);
-  document.getElementById('clockDisplay').textContent = `T = ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const now = performance.now();
+  if (previousTickTime !== null && previousTickWall !== null && now > previousTickWall) {
+    const observedRate = (t - previousTickTime) / ((now - previousTickWall) / 1000);
+    if (Number.isFinite(observedRate) && observedRate > 0) {
+      liveClockRate = liveClockRate > 0
+        ? liveClockRate * 0.75 + observedRate * 0.25
+        : observedRate;
+    }
+  }
+  previousTickTime = t;
+  previousTickWall = now;
+  liveClockAnchorTime = t;
+  liveClockAnchorWall = now;
+  updateLiveClock();
 
   // Update KPIs
   const kpis = data.kpis;
@@ -1960,18 +2011,52 @@ function renderTickData(data) {
     if (!currentPendingIds.has(id)) {
       map.removeLayer(pendingMarkers[id]);
       delete pendingMarkers[id];
+      delete pendingRequestTimes[id];
     }
   });
   data.pending.forEach(p => {
+    const tooltip = `<b>${p.id}</b><br>Đang chờ (mô phỏng): ${formatWaitTime(p.wait_time)}s`;
     if (!pendingMarkers[p.id]) {
       const marker = L.marker([p.pickup_lat, p.pickup_lon], { icon: createPickupIcon() }).addTo(map);
-      marker.bindTooltip(`<b>${p.id}</b><br>Đang chờ: ${p.wait_time}s`, { direction: 'top' });
+      marker.bindTooltip(tooltip, { direction: 'top' });
       pendingMarkers[p.id] = marker;
+      pendingRequestTimes[p.id] = p.request_time;
+    } else {
+      pendingMarkers[p.id].setTooltipContent(tooltip);
+      pendingRequestTimes[p.id] = p.request_time;
     }
   });
 
   // Update Chart
   updateChart(kpis.avg_wait_time, kpis.cancellation_rate, t);
+}
+
+const pendingRequestTimes = {};
+
+function getEstimatedSimulationTime() {
+  if (simulationPaused || liveClockRate <= 0) return liveClockAnchorTime;
+  return liveClockAnchorTime + ((performance.now() - liveClockAnchorWall) / 1000) * liveClockRate;
+}
+
+function formatWaitTime(seconds) {
+  return Math.max(0, Math.floor(seconds));
+}
+
+function updateLiveClock() {
+  const currentTime = getEstimatedSimulationTime();
+  const minutes = Math.floor(currentTime / 60);
+  const seconds = Math.floor(currentTime % 60);
+  document.getElementById('clockDisplay').textContent =
+    `T = ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+  Object.entries(pendingMarkers).forEach(([id, marker]) => {
+    const requestTime = pendingRequestTimes[id];
+    if (requestTime !== undefined) {
+      marker.setTooltipContent(
+        `<b>${id}</b><br>Đang chờ (mô phỏng): ${formatWaitTime(currentTime - requestTime)}s`
+      );
+    }
+  });
 }
 
 function addFeedItem(text) {
@@ -2009,10 +2094,23 @@ document.addEventListener('keydown', (event) => {
 function setRunningState(running) {
   isRunning = running;
   document.getElementById('btnStart').style.display = running ? 'none' : 'flex';
+  document.getElementById('btnPause').style.display = running ? 'flex' : 'none';
   document.getElementById('btnStop').style.display = running ? 'flex' : 'none';
   document.querySelectorAll('.strat-btn').forEach(b => b.disabled = running);
   document.getElementById('inpDrivers').disabled = running;
   document.getElementById('inpArrival').disabled = running;
+  if (!running) setPausedState(false);
+  if (liveClockTimer) clearInterval(liveClockTimer);
+  liveClockTimer = running ? setInterval(updateLiveClock, 250) : null;
+}
+
+function setPausedState(paused) {
+  const currentTime = getEstimatedSimulationTime();
+  simulationPaused = paused;
+  const button = document.getElementById('btnPause');
+  button.textContent = paused ? 'Tiếp tục' : 'Tạm dừng';
+  liveClockAnchorTime = currentTime;
+  liveClockAnchorWall = performance.now();
 }
 
 document.getElementById('btnStart').addEventListener('click', async () => {
@@ -2048,6 +2146,21 @@ document.getElementById('btnStop').addEventListener('click', async () => {
   } else if (clientTimer) {
     clearInterval(clientTimer);
     setRunningState(false);
+  }
+});
+
+document.getElementById('btnPause').addEventListener('click', async () => {
+  if (serverOnline) {
+    try {
+      const response = await fetch('/api/pause', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Không thể cập nhật trạng thái mô phỏng');
+      setPausedState(result.status === 'paused');
+    } catch (error) {
+      addFeedItem(`Không thể tạm dừng/tiếp tục: <strong>${error.message}</strong>`);
+    }
+  } else {
+    setPausedState(!simulationPaused);
   }
 });
 
@@ -2089,6 +2202,16 @@ document.getElementById('btnCloseModal').addEventListener('click', () => {
 document.getElementById('btnRunBenchAction').addEventListener('click', async () => {
   const pBar = document.getElementById('benchProgressBar');
   const pText = document.getElementById('benchStatusText');
+  const durationMinutes = Number(document.getElementById('benchDurationMinutes').value);
+  const seed = Number(document.getElementById('benchSeed').value);
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 5 || durationMinutes > 120) {
+    pText.textContent = 'Thời lượng phải là số nguyên từ 5 đến 120 phút.';
+    return;
+  }
+  if (!Number.isInteger(seed)) {
+    pText.textContent = 'Seed phải là một số nguyên.';
+    return;
+  }
   pBar.style.width = '20%';
   pText.textContent = "Đang chạy benchmark 4 chiến lược trên đồ thị OpenStreetMap...";
 
@@ -2100,18 +2223,22 @@ document.getElementById('btnRunBenchAction').addEventListener('click', async () 
         body: JSON.stringify({
           num_drivers: parseInt(document.getElementById('inpDrivers').value) || 8,
           arrival_rate: parseFloat(document.getElementById('inpArrival').value) || 0.03,
-          sim_seconds: 1200
+          sim_seconds: durationMinutes * 60,
+          seed
         })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Benchmark thất bại');
       pBar.style.width = '100%';
-      pText.textContent = "Hoàn thành so sánh định lượng!";
+      pText.textContent = `Hoàn thành một lượt ${durationMinutes} phút mô phỏng mỗi chiến lược, seed ${seed}.`;
       renderBenchmarkTable(data.results);
-    } catch (e) {
-      runClientBenchmark();
+    } catch (error) {
+      pBar.style.width = '0%';
+      pText.textContent = `Không thể chạy benchmark thật từ máy chủ: ${error.message}`;
     }
   } else {
-    runClientBenchmark();
+    pBar.style.width = '0%';
+    pText.textContent = 'Benchmark cần máy chủ trực tuyến; không hiển thị số liệu mẫu như kết quả mô phỏng.';
   }
 });
 
@@ -2149,9 +2276,7 @@ function renderBenchmarkTable(results) {
       <tbody>${rows}</tbody>
     </table>
     <div style="margin-top:14px;padding:10px 14px;background:var(--bg-main);border-radius:8px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
-      <strong>Nhận xét từ kết quả:</strong><br>
-      • <strong>Hungarian (S2)</strong> giảm thời gian đón khách và quãng đường chạy rỗng so với <strong>Greedy (S1)</strong> nhờ giải thuật gán tối ưu toàn cục.<br>
-      • Các chiến lược ghép chuyến <strong>Pooling (S3, S4)</strong> nâng cao hiệu suất sử dụng đội xe (Utilization), giảm số lượng xe cần thiết để phục vụ cùng lưu lượng khách.
+      <strong>Cách đọc kết quả:</strong> một lượt benchmark dùng cùng cấu hình và seed để các chiến lược nhận kịch bản nhu cầu có thể so sánh. Kết quả vẫn có thể dao động theo seed; nên chạy nhiều seed và báo cáo trung bình cùng độ lệch chuẩn trước khi kết luận.
     </div>
   `;
 }
@@ -2168,6 +2293,7 @@ function startClientFallbackSim(numDrivers, arrivalRate) {
   let waitSum = 0;
 
   clientTimer = setInterval(() => {
+    if (simulationPaused) return;
     simTime += speedMult;
     if (Math.random() < arrivalRate * speedMult * 10) {
       totalReq++;
@@ -2214,18 +2340,6 @@ function startClientFallbackSim(numDrivers, arrivalRate) {
       }
     });
   }, 1000);
-}
-
-function runClientBenchmark() {
-  const pBar = document.getElementById('benchProgressBar');
-  pBar.style.width = '100%';
-  document.getElementById('benchStatusText').textContent = "Hoàn thành so sánh (Dữ liệu kịch bản chuẩn Hà Nội)!";
-  renderBenchmarkTable([
-    { name: "S1: Greedy", total_requests: 55, completed_requests: 44, completion_rate: 80.0, cancellation_rate: 10.9, avg_wait_time: 123.4, driver_utilization: 73.8, total_distance_km: 88.2 },
-    { name: "S2: Hungarian", total_requests: 55, completed_requests: 43, completion_rate: 78.2, cancellation_rate: 10.9, avg_wait_time: 101.6, driver_utilization: 69.9, total_distance_km: 83.5 },
-    { name: "S3: Greedy+Pool", total_requests: 55, completed_requests: 43, completion_rate: 78.2, cancellation_rate: 10.9, avg_wait_time: 102.4, driver_utilization: 70.6, total_distance_km: 84.3 },
-    { name: "S4: HU+Pool", total_requests: 55, completed_requests: 44, completion_rate: 80.0, cancellation_rate: 10.9, avg_wait_time: 112.2, driver_utilization: 70.1, total_distance_km: 83.7 }
-  ]);
 }
 
 // Start

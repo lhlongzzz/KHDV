@@ -35,7 +35,7 @@ KHDV/
 ├── core_engine/                 # Động cơ mô phỏng không-thời gian (Spatiotemporal Engine)
 │   ├── entities.py              # Thực thể: Driver, Request, DriverState, RequestState
 │   ├── map_network.py           # Bản đồ OSMnx: tải đồ thị đường phố, tính Dijkstra, nội suy tọa độ
-│   ├── demand_generator.py      # Sinh nhu cầu theo quá trình Poisson không đồng nhất
+│   ├── demand_generator.py      # Sinh nhu cầu theo Poisson đồng nhất (λ cố định)
 │   └── simulator.py             # Quản lý vòng lặp tick mô phỏng, chuyển động xe, đo lường KPIs
 │
 ├── matching/                    # Các chiến lược ghép cặp (Dispatch & Matching Strategies)
@@ -112,22 +112,17 @@ KHDV/
    *(Tỷ lệ phần trăm thời gian tài xế thực sự bận đón hoặc chở khách trên tổng thời gian vận hành).*
 4. **Tổng quãng đường di chuyển và quãng đường chạy rỗng (Total Distance & Deadheading Distance).**
 
+**Giới hạn mô hình hiện tại:** thời điểm đến tuân theo Poisson đồng nhất với λ cố định; điểm đón/trả được chọn ngẫu nhiên đồng đều trên các nút bản đồ. Đây là mô hình nền phù hợp để so thuật toán, chưa mô tả được giờ cao điểm, vùng phát sinh nhu cầu hay luồng O-D thực tế. Nếu báo cáo theo yêu cầu “theo không gian và thời gian”, cần bổ sung λ(t) theo khung giờ và phân phối điểm đón/trả theo vùng hoặc ma trận O-D.
+
 ---
 
-## 4. Kết quả Thực nghiệm và So sánh Định lượng
+## 4. Thực nghiệm và so sánh định lượng
 
-Thực nghiệm trên đồ thị giao thông thực tế Hoàn Kiếm, Hà Nội (mô phỏng 30 phút, 8 tài xế, $\lambda = 0.03\text{ req/s}$, seed = 42):
+Benchmark chạy bốn chiến lược trên cùng cấu hình và seed để tạo kịch bản nhu cầu có thể đối chiếu. Giao diện mặc định 20 phút mô phỏng mỗi chiến lược; có thể chọn 5–120 phút.
 
-| Chiến lược | Tổng yêu cầu | Chuyến hoàn thành | Chuyến hủy | Tỷ lệ hủy (%) | Thời gian đón TB (s) | Hiệu suất tài xế (%) | Tổng quãng đường (km) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **S1: Greedy** | 55 | 44 (80.0%) | 6 | 10.9% | 123.4s | 73.8% | 88.2 km |
-| **S2: Hungarian** | 55 | 43 (78.2%) | 6 | 10.9% | **101.6s** (-17.6%) | 69.9% | **83.5 km** (-5.3%) |
-| **S3: Greedy+Pool** | 55 | 43 (78.2%) | 6 | 10.9% | 102.4s | 70.6% | 84.3 km |
-| **S4: HU+Pool** | 55 | 44 (80.0%) | 6 | 10.9% | 112.2s | 70.1% | 83.7 km |
+**20 phút hợp lý cho demo/smoke test, chưa đủ để kết luận chiến lược nào tốt hơn.** Benchmark giao diện hiện là một lần chạy với seed 42. Số liệu cũ từng hiển thị trong bảng dưới dạng kết quả cố định là dữ liệu fallback mẫu, không phải bằng chứng thực nghiệm đã xác minh; không dùng để trích dẫn hoặc kết luận.
 
-> **Phân tích kết quả:**
-> - **Hungarian (S2)** giúp rút ngắn thời gian chờ đón trung bình của khách hàng từ **123.4s xuống 101.6s** (giảm **17.6%** thời gian lãng phí). Đồng thời giảm quãng đường chạy rỗng không tải từ 88.2 km xuống 83.5 km (tiết kiệm nhiên liệu và giảm phát thải).
-> - **Ride-Pooling (S3, S4)** cho phép phục vụ lưu lượng nhu cầu cao hơn trong giờ cao điểm khi số lượng xe rảnh bị giới hạn.
+Để báo cáo, nên giữ nguyên số tài xế, λ, mạng đường, thời lượng và bộ seed cho cả bốn chiến lược; chạy nhiều seed (ví dụ 20–30 lần), bỏ khoảng warm-up giống nhau, rồi báo cáo số trung bình và độ lệch chuẩn/khoảng tin cậy. Ghi rõ định nghĩa thời gian chờ (KPI tính trên các yêu cầu đã được đón, kể cả chuyến đang chạy), cách tính hủy và mức dùng xe. Lưu cấu hình, seed và kết quả thô để có thể lặp lại thực nghiệm.
 
 ---
 
@@ -140,7 +135,7 @@ Thực nghiệm trên đồ thị giao thông thực tế Hoàn Kiếm, Hà Nộ
    - Bản đồ số Hà Nội với xe di chuyển theo thời gian thực dọc theo các tuyến phố.
    - Chuyển đổi linh hoạt giữa 4 chiến lược ghép chuyến.
    - Tùy chỉnh số lượng tài xế (3 - 30 xe), cường độ Poisson $\lambda$, và thanh trượt tốc độ (1x - 10x).
-   - Nút **"📊 So sánh 4 chiến lược"** để chạy tự động và xem bảng đối sánh trực quan.
+   - Nút **"So sánh chiến lược"** để chạy một lượt benchmark thực trên máy chủ; khi offline ứng dụng không giả lập số liệu kết quả.
 
 ### Cách 2: Chạy Dòng lệnh (CLI)
 Chạy so sánh đồng thời cả 4 chiến lược:

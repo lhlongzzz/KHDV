@@ -235,7 +235,15 @@ class SimulationEngine:
         completed = len(self.completed_requests)
         cancelled = len(self.cancelled_requests)
         
-        waits = [r.pickup_time - r.request_time for r in self.completed_requests if r.pickup_time is not None]
+        picked_up_requests = [
+            *self.completed_requests,
+            *self.active_requests.values(),
+        ]
+        waits = [
+            r.pickup_time - r.request_time
+            for r in picked_up_requests
+            if r.pickup_time is not None
+        ]
         avg_wait = sum(waits) / len(waits) if waits else 0.0
         
         cancel_rate = (cancelled / total * 100.0) if total > 0 else 0.0
