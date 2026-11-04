@@ -5,9 +5,30 @@
 
 ---
 
-## 1. Tổng quan Kiến trúc Hệ thống
+## 1. Kiến trúc hướng dịch vụ (SOA)
 
-Hệ thống được thiết kế theo kiến trúc module hóa chặt chẽ, phân tách rõ ràng giữa động cơ mô phỏng thời gian thực, thuật toán ghép cặp và giao diện trực quan hóa:
+Trước đây `server.py` gọi trực tiếp bộ sinh nhu cầu, thuật toán ghép cặp và lõi mô phỏng; các lớp trong `services/` chưa nằm trên luồng xử lý chính. Cấu trúc đó là modular monolith, chưa thể hiện rõ ranh giới dịch vụ. Luồng ứng dụng hiện được tổ chức theo các dịch vụ có hợp đồng DTO riêng và một lớp điều phối:
+
+```text
+Web UI
+  │ REST commands / WebSocket events
+  ▼
+API Gateway (FastAPI: server.py)
+  │
+  ▼
+Simulation Service ───────────────► Simulation Engine
+  ├── Demand Service ── TripRequestDTO
+  ├── Matching Service ── DriverDTO + TripRequestDTO ──► Matching algorithms
+  └── Map Service ── nodes / routes / distance
+          │
+          └── OpenStreetMap network
+
+Service events: EventBus (REQUEST_CREATED, DISPATCH_BATCH_EXECUTED, ...)
+```
+
+`SimulationService` là composition/orchestration layer và là anti-corruption layer giữa DTO của các dịch vụ với entity nội bộ của mô phỏng. Dịch vụ Nhu cầu không trả entity lõi; Dịch vụ Ghép xe nhận DTO và cổng tính khoảng cách, không phụ thuộc trực tiếp vào `core_engine`. API Gateway là điểm vào cho giao diện và chuyển lệnh tới luồng mô phỏng. CLI và benchmark cũng dùng cùng luồng service để tránh hai cách chạy khác nhau.
+
+**Phạm vi triển khai:** các ranh giới và hợp đồng SOA đã được áp dụng trong ứng dụng, nhưng hiện các dịch vụ vẫn được host trong cùng tiến trình Python; EventBus là in-memory, không phải message broker bền vững. Vì vậy đây là SOA-style single-process deployment, chưa phải các dịch vụ phân tán có thể triển khai/scale độc lập. Muốn tách tiến trình, cần thay các cổng service bằng REST/gRPC clients và thay EventBus bằng broker, đồng thời bổ sung xác thực service-to-service, timeout/retry, cấu hình endpoint và observability.
 
 ```
 KHDV/
@@ -25,20 +46,29 @@ KHDV/
 │   ├── pooling.py               # Chiến lược 3: Greedy Ride-Pooling Matching (Ghép chuyến chung)
 │   └── hungarian_pooling.py     # Chiến lược 4: Hungarian Ride-Pooling (Hungary gom lô + Ghép chuyến)
 │
-├── tests/                       # Bộ kiểm thử tự động (212 unit tests, 100% pass)
+├── services/                    # Service layer và hợp đồng trao đổi DTO
+│   ├── contracts.py             # Hợp đồng dữ liệu dùng chung giữa các service
+│   ├── base.py                  # Kết quả service và EventBus
+│   ├── simulation_service.py    # Điều phối và chuyển DTO sang entity lõi
+│   ├── map_service/             # Dữ liệu nút, định tuyến, khoảng cách
+│   ├── demand_service/          # Sinh yêu cầu và phát REQUEST_CREATED
+│   └── matching_service/        # Ghép chuyến qua DriverDTO/TripRequestDTO
+│
+├── tests/                       # Unit tests cho lõi và các service
 │   ├── test_base.py
 │   ├── test_greedy.py
 │   ├── test_hungarian.py
 │   ├── test_pooling.py
 │   ├── test_hungarian_pooling.py
-│   └── test_node_ids.py
+│   ├── test_node_ids.py
+│   └── test_services.py
 │
 ├── static/                      # Giao diện Web App điều hành Grab Operations
 │   └── index.html               # Web UI tương tác: Leaflet bản đồ Hà Nội, Chart.js, KPI real-time
 │
-├── adapter.py                   # Adapter nối matcher với SimulationEngine
-├── main.py                      # Chạy mô phỏng CLI và bảng so sánh Benchmark
-├── server.py                    # FastAPI server cung cấp REST API & WebSocket stream
+├── adapter.py                   # Adapter tương thích cho tích hợp matcher cũ
+├── main.py                      # CLI gọi qua SimulationService
+├── server.py                    # API Gateway REST/WebSocket
 └── start_server.bat             # File khởi chạy nhanh 1-click cho Windows
 ```
 

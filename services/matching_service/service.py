@@ -10,7 +10,7 @@ Giao tiếp thông qua DTO chuẩn hóa và EventBus.
 from __future__ import annotations
 
 import time
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, List, Optional, Protocol
 
 from matching import (
     GreedyMatcher,
@@ -21,18 +21,22 @@ from matching import (
     Request as AlgoRequest,
 )
 from services.base import ServiceResult, event_bus, EventType
-from services.map_service.service import MapService
 from services.matching_service.contracts import (
     AssignmentDTO,
     DispatchResultDTO,
     DispatchStrategy,
+    DriverDTO,
+    TripRequestDTO,
 )
-from core_engine.entities import Driver, Request
+
+
+class DistanceProvider(Protocol):
+    def get_distance(self, origin_node: int, destination_node: int) -> float: ...
 
 
 class MatchingService:
-    def __init__(self, map_service: MapService):
-        self.map_service = map_service
+    def __init__(self, distance_provider: DistanceProvider):
+        self.distance_provider = distance_provider
         self._matchers = {
             DispatchStrategy.GREEDY: GreedyMatcher(max_pickup_cost=3000.0),
             DispatchStrategy.HUNGARIAN: HungarianMatcher(max_pickup_cost=3000.0),
@@ -42,24 +46,27 @@ class MatchingService:
         self.active_strategy = DispatchStrategy.GREEDY
 
     def set_strategy(self, strategy: DispatchStrategy):
-        if strategy in self._matchers:
-            self.active_strategy = strategy
+        if strategy not in self._matchers:
+            raise ValueError(f"Chiến lược điều phối không được hỗ trợ: {strategy}")
+        self.active_strategy = strategy
 
     def get_cost_function(self) -> Callable[[int, int], float]:
-        """Tạo hàm chi phí kết nối với MapService có lưu cache."""
-        return self.map_service.get_distance
+        """Lấy cổng tính chi phí tuyến đường do Map Service cung cấp."""
+        return self.distance_provider.get_distance
 
     def dispatch(
         self,
-        idle_drivers: List[Driver],
-        pending_requests: List[Request],
+        idle_drivers: List[DriverDTO],
+        pending_requests: List[TripRequestDTO],
         strategy: Optional[DispatchStrategy] = None
     ) -> ServiceResult[DispatchResultDTO]:
         """
         Thực hiện một chu kỳ ghép cặp giữa xe rảnh và yêu cầu chờ.
         """
         strat = strategy or self.active_strategy
-        matcher = self._matchers.get(strat, self._matchers[DispatchStrategy.GREEDY])
+        matcher = self._matchers.get(strat)
+        if matcher is None:
+            return ServiceResult.fail(f"Chiến lược điều phối không được hỗ trợ: {strat}")
 
         if not idle_drivers or not pending_requests:
             return ServiceResult.ok(DispatchResultDTO(

@@ -18,11 +18,11 @@ if hasattr(sys.stderr, "reconfigure"):
 
 import asyncio
 import json
+import logging
 import os
 import threading
 import time
 from contextlib import asynccontextmanager
-from functools import partial
 from typing import Dict, List, Optional, Set
 
 import uvicorn
@@ -36,34 +36,29 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
-from core_engine.entities import Driver, Request, DriverState, RequestState
+from core_engine.entities import Driver, Request, DriverState
 from core_engine.map_network import RealRoadMap
-from core_engine.demand_generator import DemandGenerator
 from core_engine.simulator import SimulationEngine
-from adapter import run_matcher_on_sim, get_cost_fn
-from matching import (
-    GreedyMatcher,
-    HungarianMatcher,
-    PoolingMatcher,
-    HungarianPoolingMatcher,
-)
+from services.map_service.service import MapService
+from services.matching_service.contracts import DispatchStrategy
+from services.simulation_service import SimulationService
 
-# ============================================================
-# Cấu hình Matchers
-# ============================================================
-MATCHERS = {
-    "greedy": (lambda: GreedyMatcher(max_pickup_cost=3000.0), "S1: Greedy (Tham lam)"),
-    "hungarian": (lambda: HungarianMatcher(max_pickup_cost=3000.0), "S2: Hungarian (Gom lô tối ưu)"),
-    "pooling": (lambda: PoolingMatcher(max_pickup_cost=3000.0, max_detour_ratio=1.5), "S3: Greedy Pooling (Ghép chuyến)"),
-    "greedy_pool": (lambda: PoolingMatcher(max_pickup_cost=3000.0, max_detour_ratio=1.5), "S3: Greedy Pooling (Ghép chuyến)"),
-    "hungarian_pooling": (lambda: HungarianPoolingMatcher(max_pickup_cost=3000.0, max_detour_ratio=1.5), "S4: Hungarian Pooling (Hungary + Ghép chuyến)"),
-    "hungarian_pool": (lambda: HungarianPoolingMatcher(max_pickup_cost=3000.0, max_detour_ratio=1.5), "S4: Hungarian Pooling (Hungary + Ghép chuyến)"),
+STRATEGY_LABELS = {
+    DispatchStrategy.GREEDY.value: "S1: Greedy (Tham lam)",
+    DispatchStrategy.HUNGARIAN.value: "S2: Hungarian (Gom lô tối ưu)",
+    DispatchStrategy.POOLING.value: "S3: Greedy Pooling (Ghép chuyến)",
+    DispatchStrategy.HUNGARIAN_POOLING.value: "S4: Hungarian Pooling (Hungary + Ghép chuyến)",
+}
+STRATEGY_ALIASES = {
+    "greedy_pool": DispatchStrategy.POOLING.value,
+    "hungarian_pool": DispatchStrategy.HUNGARIAN_POOLING.value,
 }
 
 # ============================================================
 # Trạng thái toàn cục
 # ============================================================
 road_map: Optional[RealRoadMap] = None
+map_service: Optional[MapService] = None
 map_nodes_cache: Optional[List[dict]] = None
 main_loop: Optional[asyncio.AbstractEventLoop] = None
 
@@ -84,6 +79,7 @@ stop_event = threading.Event()
 pause_event = threading.Event()
 sim_engine_ref: Optional[SimulationEngine] = None
 all_requests_ref: List[Request] = []
+logger = logging.getLogger(__name__)
 
 STATIC_DIR = os.path.join(CURRENT_DIR, "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
@@ -93,20 +89,25 @@ os.makedirs(STATIC_DIR, exist_ok=True)
 # ============================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global road_map, map_nodes_cache, main_loop
+    global road_map, map_service, map_nodes_cache, main_loop
     main_loop = asyncio.get_running_loop()
     print("\n[Server] Đang nạp bản đồ giao thông Hoàn Kiếm, Hà Nội...")
-    try:
-        road_map = RealRoadMap(place_name="Hoan Kiem, Hanoi, Vietnam")
-        # Cache danh sách tọa độ nodes để gửi cho frontend
-        map_nodes_cache = []
-        for node in road_map.nodes:
-            lat, lon = road_map.get_node_latlon(node)
-            map_nodes_cache.append({"id": node, "lat": lat, "lon": lon})
-        print(f"[Server] ✓ Bản đồ sẵn sàng: {len(map_nodes_cache)} giao lộ.")
-    except Exception as e:
-        print(f"[Server] ⚠ Lỗi nạp bản đồ: {e}")
+    map_service = MapService(place_name="Hoan Kiem, Hanoi, Vietnam")
+    map_result = map_service.initialize()
+    if map_result.success:
+        road_map = map_service.road_map
+        nodes_result = map_service.get_all_nodes()
+        if not nodes_result.success or nodes_result.data is None:
+            raise RuntimeError(nodes_result.error or "Map Service không trả về danh sách nút")
+        map_nodes_cache = [
+            {"id": node.id, "lat": node.lat, "lon": node.lon}
+            for node in nodes_result.data
+        ]
+        print(f"[Server] ✓ Map Service sẵn sàng: {len(map_nodes_cache)} giao lộ.")
+    else:
         road_map = None
+        map_nodes_cache = None
+        print(f"[Server] ⚠ Map Service lỗi: {map_result.error}")
     yield
 
 app = FastAPI(title="Ride-Hailing Platform - Hanoi Simulator", lifespan=lifespan)
@@ -237,29 +238,37 @@ def send_ws_event(message: dict):
 # Vòng lặp mô phỏng chạy ngầm (Background Simulation Thread)
 # ============================================================
 def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, speed_mult: float, seed: int = 42):
-    global road_map, sim_engine_ref, all_requests_ref
-
     stop_event.clear()
     pause_event.clear()
     sim_state["running"] = True
     sim_state["paused"] = False
 
-    matcher_factory, label = MATCHERS.get(strategy_key, MATCHERS["greedy"])
-    matcher = matcher_factory()
-    matching_callback = partial(run_matcher_on_sim, matcher)
+    try:
+        _run_simulation(strategy_key, num_drivers, arrival_rate, speed_mult, seed)
+    except Exception as exc:
+        logger.exception("Simulation worker failed")
+        send_ws_event({"type": "sim_error", "error": str(exc)})
+    finally:
+        sim_state["running"] = False
+        sim_state["paused"] = False
 
-    # Seed tái lập
-    import random, numpy as np
-    random.seed(seed)
-    np.random.seed(seed)
 
-    drivers = [
-        Driver(driver_id=f"D_{i+1:02d}", current_node=road_map.get_random_node())
-        for i in range(num_drivers)
-    ]
+def _run_simulation(strategy_key: str, num_drivers: int, arrival_rate: float, speed_mult: float, seed: int):
+    global road_map, map_service, sim_engine_ref, all_requests_ref
 
-    generator = DemandGenerator(road_map, arrival_rate=arrival_rate, seed=seed)
-    sim = SimulationEngine(road_map, drivers, default_speed=8.33)  # 30 km/h
+    if map_service is None or not map_service.is_ready:
+        raise RuntimeError("Map Service chưa sẵn sàng để khởi chạy mô phỏng")
+    strategy_key = STRATEGY_ALIASES.get(strategy_key, strategy_key)
+    strategy = DispatchStrategy(strategy_key)
+    label = STRATEGY_LABELS[strategy_key]
+    runtime = SimulationService(
+        map_service=map_service,
+        num_drivers=num_drivers,
+        arrival_rate=arrival_rate,
+        strategy=strategy,
+        seed=seed,
+    )
+    sim = runtime.engine
     sim_engine_ref = sim
     all_requests_ref = []
 
@@ -280,10 +289,12 @@ def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, 
             time.sleep(0.1)
             continue
 
-        # Sinh yêu cầu mới
-        new_reqs = generator.tick(sim.current_time)
+        prev_completed = len(sim.completed_requests)
+        prev_cancelled = len(sim.cancelled_requests)
+
+        # Demand Service generates DTOs; SimulationService adapts them to engine entities.
+        new_reqs = runtime.step(dt)
         if new_reqs:
-            sim.add_requests(new_reqs)
             all_requests_ref.extend(new_reqs)
             for r in new_reqs:
                 plat, plon = road_map.get_node_latlon(r.origin_node)
@@ -295,12 +306,6 @@ def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, 
                     "dropoff": [dlat, dlon],
                     "time": round(r.request_time, 1),
                 })
-
-        # Bước mô phỏng
-        prev_completed = len(sim.completed_requests)
-        prev_cancelled = len(sim.cancelled_requests)
-
-        sim.step(dt, matching_function=matching_callback)
 
         # Bắn sự kiện chuyến hoàn thành / bị hủy nếu có thay đổi
         if len(sim.completed_requests) > prev_completed:
@@ -332,10 +337,6 @@ def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, 
     final_snapshot = build_snapshot(sim, all_requests_ref)
     final_snapshot["type"] = "sim_finished"
     send_ws_event(final_snapshot)
-
-    sim_state["running"] = False
-    sim_state["paused"] = False
-
 
 # ============================================================
 # API Endpoints
@@ -381,20 +382,20 @@ async def start_simulation(payload: dict):
     global sim_thread
     if sim_state["running"]:
         return JSONResponse({"error": "Mô phỏng đang chạy"}, status_code=400)
-    if not road_map:
+    if not road_map or map_service is None:
         return JSONResponse({"error": "Bản đồ chưa được tải"}, status_code=503)
 
-    strategy = payload.get("strategy", "greedy")
+    strategy = STRATEGY_ALIASES.get(payload.get("strategy", "greedy"), payload.get("strategy", "greedy"))
     num_drivers = int(payload.get("num_drivers", 10))
     arrival_rate = float(payload.get("arrival_rate", 0.04))
     speed_mult = float(payload.get("speed_multiplier", 2.0))
 
-    if strategy not in MATCHERS:
-        strategy = "greedy"
+    if strategy not in STRATEGY_LABELS:
+        return JSONResponse({"error": f"Chiến lược không được hỗ trợ: {strategy}"}, status_code=422)
 
     sim_state.update({
         "strategy": strategy,
-        "strategy_name": MATCHERS[strategy][1],
+        "strategy_name": STRATEGY_LABELS[strategy],
         "num_drivers": num_drivers,
         "arrival_rate": arrival_rate,
         "speed_multiplier": speed_mult,
@@ -405,6 +406,7 @@ async def start_simulation(payload: dict):
         args=(strategy, num_drivers, arrival_rate, speed_mult, int(time.time())),
         daemon=True,
     )
+    sim_state["running"] = True
     sim_thread.start()
     return {"status": "started", "strategy": strategy}
 
@@ -443,7 +445,7 @@ async def run_benchmark_api(payload: dict):
     """Chạy benchmark 4 chiến lược trên server và trả về kết quả định lượng so sánh."""
     if sim_state["running"]:
         return JSONResponse({"error": "Vui lòng dừng mô phỏng hiện tại trước khi chạy benchmark"}, status_code=400)
-    if not road_map:
+    if not road_map or map_service is None:
         return JSONResponse({"error": "Bản đồ chưa sẵn sàng"}, status_code=503)
 
     num_drivers = int(payload.get("num_drivers", 8))
@@ -451,29 +453,22 @@ async def run_benchmark_api(payload: dict):
     sim_seconds = float(payload.get("sim_seconds", 900.0))  # 15 phút mô phỏng nhanh
     seed = int(payload.get("seed", 42))
 
-    from main import run_single_simulation
-    strategies = [
-        ("greedy", GreedyMatcher, "S1: Greedy (Tham lam)"),
-        ("hungarian", HungarianMatcher, "S2: Hungarian (Gom lô)"),
-        ("pooling", PoolingMatcher, "S3: Greedy Pooling (Ghép chuyến)"),
-        ("hungarian_pooling", HungarianPoolingMatcher, "S4: Hungarian Pooling (Hungary+Ghép)"),
-    ]
-
     results = []
-    for key, cls, name in strategies:
-        kpis = run_single_simulation(
-            road_map=road_map,
-            matcher_cls=cls,
-            label=name,
+    for strategy in DispatchStrategy:
+        runtime = SimulationService(
+            map_service=map_service,
             num_drivers=num_drivers,
             arrival_rate=arrival_rate,
-            total_time=sim_seconds,
+            strategy=strategy,
             seed=seed,
-            dt=1.0,
         )
+        all_requests = []
+        while runtime.engine.current_time < sim_seconds:
+            all_requests.extend(runtime.step(1.0))
+        kpis = runtime.engine.get_kpis(len(all_requests))
         results.append({
-            "key": key,
-            "name": name,
+            "key": strategy.value,
+            "name": STRATEGY_LABELS[strategy.value],
             "total_requests": kpis["total_requests"],
             "completed_requests": kpis["completed_requests"],
             "cancelled_requests": kpis["cancelled_requests"],

@@ -8,18 +8,20 @@ Quản lý:
 from __future__ import annotations
 
 import random
-from typing import List, Optional
+from typing import List, Optional, Protocol
 import numpy as np
 
-from core_engine.entities import Request
-from services.base import ServiceResult, event_bus, EventType
-from services.map_service.service import MapService
+from services.base import event_bus, EventType
 from services.demand_service.contracts import DemandConfigDTO, TripRequestDTO
 
 
+class NodeProvider(Protocol):
+    def get_random_node(self) -> int: ...
+
+
 class DemandService:
-    def __init__(self, map_service: MapService, config: Optional[DemandConfigDTO] = None):
-        self.map_service = map_service
+    def __init__(self, node_provider: NodeProvider, config: Optional[DemandConfigDTO] = None):
+        self.node_provider = node_provider
         self.config = config or DemandConfigDTO()
         self.req_counter = 0
         self.next_arrival_time = 0.0
@@ -35,18 +37,18 @@ class DemandService:
     def update_rate(self, new_rate: float):
         self.config.arrival_rate = max(0.001, new_rate)
 
-    def generate_tick_requests(self, current_time: float) -> List[Request]:
+    def generate_tick_requests(self, current_time: float) -> List[TripRequestDTO]:
         """Sinh tất cả yêu cầu có thời điểm xuất hiện <= current_time."""
-        new_requests: List[Request] = []
+        new_requests: List[TripRequestDTO] = []
 
         while current_time >= self.next_arrival_time:
             self.req_counter += 1
-            origin = self.map_service.get_random_node()
-            destination = self.map_service.get_random_node()
+            origin = self.node_provider.get_random_node()
+            destination = self.node_provider.get_random_node()
             while destination == origin:
-                destination = self.map_service.get_random_node()
+                destination = self.node_provider.get_random_node()
 
-            req = Request(
+            req = TripRequestDTO(
                 request_id=f"R_{self.req_counter:04d}",
                 origin_node=origin,
                 destination_node=destination,

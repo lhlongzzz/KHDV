@@ -18,16 +18,21 @@ from services.map_service.contracts import NodeDTO, RouteResponseDTO
 
 
 class MapService:
-    def __init__(self, place_name: str = "Hoan Kiem, Hanoi, Vietnam"):
+    def __init__(
+        self,
+        place_name: str = "Hoan Kiem, Hanoi, Vietnam",
+        road_map: Optional[RealRoadMap] = None,
+    ):
         self.place_name = place_name
-        self._road_map: Optional[RealRoadMap] = None
+        self._road_map = road_map
         self._cost_cache: Dict[Tuple[int, int], float] = {}
         self._path_cache: Dict[Tuple[int, int], List[int]] = {}
 
     def initialize(self) -> ServiceResult[int]:
         """Tải hoặc khôi phục đồ thị OpenStreetMap."""
         try:
-            self._road_map = RealRoadMap(place_name=self.place_name)
+            if self._road_map is None:
+                self._road_map = RealRoadMap(place_name=self.place_name)
             node_count = len(self._road_map.nodes)
             return ServiceResult.ok(node_count, place=self.place_name)
         except Exception as e:

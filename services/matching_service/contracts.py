@@ -1,7 +1,9 @@
 """Contracts cho Dịch vụ Điều phối & Ghép cặp (Matching & Dispatch Service)."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import List, Tuple, Any, Optional
+from typing import List, Tuple
+
+from services.contracts import DriverDTO, TripRequestDTO
 
 class DispatchStrategy(str, Enum):
     GREEDY = "greedy"

@@ -1,14 +1,6 @@
-import random
 import sys
-from functools import partial
-from typing import Dict
 
-import numpy as np
-
-from core_engine.entities import Driver
 from core_engine.map_network import RealRoadMap
-from core_engine.demand_generator import DemandGenerator
-from core_engine.simulator import SimulationEngine
 from visualize_map import generate_interactive_html_map
 
 from matching import (
@@ -17,7 +9,9 @@ from matching import (
     PoolingMatcher,
     HungarianPoolingMatcher,
 )
-from adapter import run_matcher_on_sim
+from services.map_service.service import MapService
+from services.matching_service.contracts import DispatchStrategy
+from services.simulation_service import SimulationService
 
 MATCHERS = {
     "greedy": (GreedyMatcher, "S1: Greedy (Tham lam gần nhất)"),
@@ -40,35 +34,36 @@ def run_single_simulation(
     dt: float = 1.0,
 ) -> dict:
     """Chạy mô phỏng đơn lẻ cho một chiến lược ghép cặp."""
-    random.seed(seed)
-    np.random.seed(seed)
+    strategy_by_matcher = {
+        GreedyMatcher: DispatchStrategy.GREEDY,
+        HungarianMatcher: DispatchStrategy.HUNGARIAN,
+        PoolingMatcher: DispatchStrategy.POOLING,
+        HungarianPoolingMatcher: DispatchStrategy.HUNGARIAN_POOLING,
+    }
+    strategy = strategy_by_matcher.get(matcher_cls)
+    if strategy is None:
+        raise ValueError(f"Thuật toán ghép cặp không được hỗ trợ: {matcher_cls.__name__}")
 
-    # 1. Khởi tạo tài xế
-    drivers = [
-        Driver(driver_id=f"D_{i+1:02d}", current_node=road_map.get_random_node())
-        for i in range(num_drivers)
-    ]
+    map_service = MapService(road_map=road_map)
+    initialized = map_service.initialize()
+    if not initialized.success:
+        raise RuntimeError(initialized.error or "Map Service không sẵn sàng")
 
-    # 2. Khởi tạo DemandGenerator & Simulator
-    generator = DemandGenerator(road_map, arrival_rate=arrival_rate, seed=seed)
-    sim = SimulationEngine(road_map, drivers, default_speed=8.33)  # ~30 km/h
-
-    matcher = matcher_cls(max_pickup_cost=3000.0)
-    matching_callback = partial(run_matcher_on_sim, matcher)
-
-    current_sim_time = 0.0
+    runtime = SimulationService(
+        map_service=map_service,
+        num_drivers=num_drivers,
+        arrival_rate=arrival_rate,
+        strategy=strategy,
+        seed=seed,
+    )
+    sim = runtime.engine
+    drivers = list(sim.drivers.values())
     all_requests = []
 
     print(f"\n--- BẮT ĐẦU MÔ PHỎNG: {label} ---")
 
-    while current_sim_time < total_time:
-        new_requests = generator.tick(current_sim_time)
-        if new_requests:
-            sim.add_requests(new_requests)
-            all_requests.extend(new_requests)
-
-        sim.step(dt, matching_function=matching_callback)
-        current_sim_time += dt
+    while sim.current_time < total_time:
+        all_requests.extend(runtime.step(dt))
 
     kpis = sim.get_kpis(len(all_requests))
     kpis["label"] = label
