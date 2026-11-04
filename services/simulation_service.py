@@ -15,6 +15,11 @@ from services.map_service.service import MapService
 from services.matching_service.contracts import DispatchStrategy
 from services.matching_service.service import MatchingService
 
+HUNGARIAN_STRATEGIES = {
+    DispatchStrategy.HUNGARIAN,
+    DispatchStrategy.HUNGARIAN_POOLING,
+}
+
 
 class SimulationService:
     """Translate service contracts to simulation entities and coordinate each tick."""
@@ -27,9 +32,17 @@ class SimulationService:
         strategy: DispatchStrategy = DispatchStrategy.GREEDY,
         seed: Optional[int] = 42,
         default_speed: float = 8.33,
+        start_hour: int = 7,
+        batch_window_seconds: float = 30.0,
+        use_spatiotemporal_demand: bool = True,
+        warmup_seconds: float = 0.0,
     ):
         if not map_service.is_ready:
             raise RuntimeError("Không thể tạo mô phỏng khi Map Service chưa sẵn sàng")
+        if not 0 <= start_hour <= 23:
+            raise ValueError("start_hour phải nằm trong khoảng 0–23")
+        if batch_window_seconds <= 0:
+            raise ValueError("batch_window_seconds phải lớn hơn 0")
 
         if seed is not None:
             random.seed(seed)
@@ -46,13 +59,22 @@ class SimulationService:
             map_service.road_map,
             drivers,
             default_speed=default_speed,
+            warmup_seconds=warmup_seconds,
         )
         self.demand_service = DemandService(
             map_service,
-            DemandConfigDTO(arrival_rate=arrival_rate, seed=seed),
+            DemandConfigDTO(
+                arrival_rate=arrival_rate,
+                seed=seed,
+                start_hour=start_hour,
+                use_time_profile=use_spatiotemporal_demand,
+                use_spatial_profile=use_spatiotemporal_demand,
+            ),
         )
         self.matching_service = MatchingService(map_service)
         self.strategy = strategy
+        self.batch_window_seconds = batch_window_seconds
+        self._next_batch_dispatch_time = batch_window_seconds
 
     @staticmethod
     def _to_request(dto: TripRequestDTO) -> Request:
@@ -72,6 +94,16 @@ class SimulationService:
         _road_map,
         _current_time: float,
     ) -> List[Tuple[str, Union[str, List[Tuple[str, str]]]]]:
+        if (
+            self.strategy in HUNGARIAN_STRATEGIES
+            and _current_time + 1e-9 < self._next_batch_dispatch_time
+        ):
+            return []
+        if self.strategy in HUNGARIAN_STRATEGIES:
+            self._next_batch_dispatch_time = (
+                int(_current_time // self.batch_window_seconds) + 1
+            ) * self.batch_window_seconds
+
         driver_contracts = [
             DriverDTO(
                 driver_id=driver.driver_id,

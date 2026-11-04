@@ -3,7 +3,13 @@ from core_engine.entities import Driver, Request, RequestState, DriverState
 from core_engine.map_network import RealRoadMap
 
 class SimulationEngine:
-    def __init__(self, road_map: RealRoadMap, drivers: List[Driver], default_speed: float = 8.33):
+    def __init__(
+        self,
+        road_map: RealRoadMap,
+        drivers: List[Driver],
+        default_speed: float = 8.33,
+        warmup_seconds: float = 0.0,
+    ):
         """
         road_map: Đồ thị bản đồ thực tế từ OpenStreetMap.
         drivers: Danh sách tài xế tham gia mô phỏng.
@@ -17,6 +23,9 @@ class SimulationEngine:
         self.cancelled_requests: List[Request] = []
         self.current_time = 0.0
         self.default_speed = default_speed
+        self.warmup_seconds = max(0.0, warmup_seconds)
+        self.measured_busy_time = 0.0
+        self.measured_distance = 0.0
         
         # Lưu quãng đường đã đi được trên đoạn đường (u, v) hiện tại của từng tài xế
         self.driver_edge_progress: Dict[str, float] = {d.driver_id: 0.0 for d in drivers}
@@ -28,7 +37,12 @@ class SimulationEngine:
         """
         Tiến hành 1 bước mô phỏng (dt giây).
         """
+        previous_time = self.current_time
         self.current_time += dt
+        measured_dt = max(
+            0.0,
+            self.current_time - max(previous_time, self.warmup_seconds),
+        )
 
         # 1. Hủy chuyến nếu khách hàng chờ gán xe quá thời hạn max_wait_time
         remaining_pending = []
@@ -74,6 +88,7 @@ class SimulationEngine:
         for driver in self.drivers.values():
             if driver.status != DriverState.IDLE:
                 driver.total_busy_time += dt
+                self.measured_busy_time += measured_dt
                 if driver.status == DriverState.OCCUPIED:
                     driver.total_passenger_time += dt
 
@@ -81,7 +96,11 @@ class SimulationEngine:
                 continue
 
             distance_to_move = self.default_speed * dt
+            distance_before_move = driver.total_distance
             self._move_driver_along_route(driver, distance_to_move)
+            moved_distance = driver.total_distance - distance_before_move
+            if dt > 0:
+                self.measured_distance += moved_distance * measured_dt / dt
 
     def _move_driver_along_route(self, driver: Driver, distance_to_move: float):
         """
@@ -128,6 +147,8 @@ class SimulationEngine:
 
     def _on_reach_destination(self, driver: Driver):
         if driver.stop_queue:                       # đang chạy lộ trình nhiều điểm dừng
+            if driver.current_node != driver.stop_queue[0][2]:
+                return
             self._on_reach_stop(driver)
             return
         req = driver.assigned_request
@@ -137,6 +158,8 @@ class SimulationEngine:
             return
 
         if driver.status == DriverState.EN_ROUTE_PICKUP:
+            if driver.current_node != req.origin_node:
+                return
             # Vừa tới điểm đón -> Chuyển sang chở khách tới điểm trả
             driver.status = DriverState.OCCUPIED
             req.status = RequestState.PICKED_UP
@@ -148,6 +171,8 @@ class SimulationEngine:
             self.driver_edge_progress[driver.driver_id] = 0.0
             
         elif driver.status == DriverState.OCCUPIED:
+            if driver.current_node != req.destination_node:
+                return
             # Vừa tới điểm trả -> Hoàn thành chuyến xe
             req.status = RequestState.COMPLETED
             req.completion_time = self.current_time
@@ -229,15 +254,47 @@ class SimulationEngine:
 
     def get_kpis(self, total_generated: Optional[int] = None) -> dict:
         """Tính toán đầy đủ các chỉ số KPI theo yêu cầu của đề tài."""
-        total = total_generated if total_generated is not None else (
-            len(self.completed_requests) + len(self.cancelled_requests) + len(self.active_requests) + len(self.pending_requests)
-        )
-        completed = len(self.completed_requests)
-        cancelled = len(self.cancelled_requests)
+        warmup = self.warmup_seconds
+        all_requests = {
+            request.request_id: request
+            for request in (
+                *self.completed_requests,
+                *self.cancelled_requests,
+                *self.active_requests.values(),
+                *self.pending_requests,
+            )
+        }
+        cohort = [
+            request for request in all_requests.values()
+            if request.request_time >= warmup
+        ]
+        if warmup > 0:
+            total = len(cohort)
+        else:
+            total = total_generated if total_generated is not None else len(cohort)
+        cohort_ids = {request.request_id for request in cohort}
+        completed_requests = [
+            request for request in self.completed_requests
+            if request.request_id in cohort_ids
+        ]
+        cancelled_requests = [
+            request for request in self.cancelled_requests
+            if request.request_id in cohort_ids
+        ]
+        active_requests = [
+            request for request in self.active_requests.values()
+            if request.request_id in cohort_ids
+        ]
+        pending_requests = [
+            request for request in self.pending_requests
+            if request.request_id in cohort_ids
+        ]
+        completed = len(completed_requests)
+        cancelled = len(cancelled_requests)
         
         picked_up_requests = [
-            *self.completed_requests,
-            *self.active_requests.values(),
+            *completed_requests,
+            *active_requests,
         ]
         waits = [
             r.pickup_time - r.request_time
@@ -251,19 +308,33 @@ class SimulationEngine:
         
         # Driver utilization: tổng thời gian bận / (số tài xế * tổng thời gian mô phỏng)
         num_drivers = len(self.drivers)
-        max_possible_time = num_drivers * self.current_time if self.current_time > 0 and num_drivers > 0 else 1.0
-        total_busy = sum(d.total_busy_time for d in self.drivers.values())
+        measurement_duration = max(0.0, self.current_time - warmup)
+        max_possible_time = num_drivers * measurement_duration if measurement_duration > 0 and num_drivers > 0 else 1.0
+        total_busy = self.measured_busy_time
         utilization = min(100.0, (total_busy / max_possible_time) * 100.0) if max_possible_time > 0 else 0.0
         
-        total_dist_km = sum(d.total_distance for d in self.drivers.values()) / 1000.0
+        total_dist_km = self.measured_distance / 1000.0
         pax_dist_km = sum(d.total_passenger_distance for d in self.drivers.values()) / 1000.0
+        picked_up_count = len(picked_up_requests)
+        pending_unassigned = len(pending_requests)
+        assigned_not_picked_up = sum(
+            request.pickup_time is None for request in active_requests
+        )
+        in_progress = sum(
+            request.pickup_time is not None for request in active_requests
+        )
+        unfinished = pending_unassigned + len(active_requests)
         
         return {
             "total_requests": total,
             "completed_requests": completed,
             "cancelled_requests": cancelled,
-            "active_requests": len(self.active_requests),
-            "pending_requests": len(self.pending_requests),
+            "active_requests": len(active_requests),
+            "pending_requests": pending_unassigned,
+            "picked_up_requests": picked_up_count,
+            "assigned_not_picked_up_requests": assigned_not_picked_up,
+            "in_progress_requests": in_progress,
+            "unfinished_requests": unfinished,
             "cancellation_rate": round(cancel_rate, 2),
             "completion_rate": round(completion_rate, 2),
             "avg_wait_time": round(avg_wait, 2),
@@ -271,4 +342,6 @@ class SimulationEngine:
             "total_distance_km": round(total_dist_km, 2),
             "passenger_distance_km": round(pax_dist_km, 2),
             "current_time": round(self.current_time, 1),
+            "warmup_seconds": warmup,
+            "measurement_seconds": round(measurement_duration, 1),
         }

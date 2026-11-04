@@ -1609,7 +1609,6 @@ button:focus-visible, input:focus-visible {
 
       <!-- Map Overlay Badge -->
       <div class="map-badge-panel">
-        <h1>Điều phối Hà Nội</h1>
         <span class="map-badge-text">Hoàn Kiếm · OpenStreetMap</span>
       </div>
 
@@ -1620,7 +1619,6 @@ button:focus-visible, input:focus-visible {
         <div class="legend-item"><div class="legend-dot" style="background:var(--yellow);"></div>Tài xế đang đi đón</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--blue);"></div>Tài xế đang chở khách</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--red);"></div>Điểm đón khách</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#929196;"></div>Điểm trả khách</div>
       </div>
 
       <!-- Speed Bar -->
@@ -1652,13 +1650,28 @@ button:focus-visible, input:focus-visible {
 
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0;color:var(--text-secondary);font-size:12px;">
       <label for="benchDurationMinutes">Thời lượng:</label>
-      <input id="benchDurationMinutes" type="number" value="20" min="5" max="120" step="5" style="width:76px;">
+      <input class="scenario-input" id="benchDurationMinutes" type="number" value="20" min="5" max="120" step="5" style="width:76px;">
       <span>phút mô phỏng mỗi chiến lược</span>
-      <label for="benchSeed" style="margin-left:8px;">Seed:</label>
-      <input id="benchSeed" type="number" value="42" step="1" style="width:82px;">
+      <label for="benchRuns" style="margin-left:8px;">Số lượt:</label>
+      <input class="scenario-input" id="benchRuns" type="number" value="10" min="1" max="30" step="1" style="width:72px;">
+      <label for="benchWarmup" style="margin-left:8px;">Warm-up:</label>
+      <input class="scenario-input" id="benchWarmup" type="number" value="5" min="0" max="60" step="1" style="width:72px;">
+      <span>phút</span>
+      <label for="benchSeed" style="margin-left:8px;">Seed đầu:</label>
+      <input class="scenario-input" id="benchSeed" type="number" value="42" step="1" style="width:82px;">
+      <label for="scenarioStartHour" style="margin-left:8px;">Giờ bắt đầu:</label>
+      <input class="scenario-input" id="scenarioStartHour" type="number" value="7" min="0" max="23" step="1" style="width:58px;">
+      <label for="scenarioBatchWindow" style="margin-left:8px;">Cửa sổ lô:</label>
+      <input class="scenario-input" id="scenarioBatchWindow" type="number" value="30" min="1" max="300" step="1" style="width:72px;">
+      <span>giây (Hungarian)</span>
+      <label for="scenarioDemandModel" style="margin-left:8px;">Nhu cầu:</label>
+      <select class="scenario-input" id="scenarioDemandModel">
+        <option value="spatiotemporal">Theo giờ và khu vực</option>
+        <option value="uniform">Đồng nhất ngẫu nhiên</option>
+      </select>
     </div>
     <p style="margin:0 0 12px;color:var(--text-secondary);font-size:12px;line-height:1.5;">
-      Một lượt phù hợp để xem thử, chưa đủ để kết luận khoa học. Hãy chạy lại nhiều seed với cùng cấu hình trước khi so sánh chính thức.
+      Nhu cầu theo giờ dùng hồ sơ Poisson tổng hợp, điểm đón tập trung ở vùng lõi và điểm trả thường sang vùng ngoài. Đây là giả định mô phỏng, không phải dữ liệu chuyến xe quan sát. Mỗi seed chạy đủ bốn chiến lược với cùng luồng nhu cầu; báo cáo trung bình ± độ lệch chuẩn.
     </p>
 
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
@@ -1692,7 +1705,9 @@ let liveClockTimer = null;
 
 // Markers
 const driverMarkers = {};
-const pendingMarkers = {};
+const requestMarkers = {};
+const requestDropoffMarkers = {};
+const requestRouteLines = {};
 const activePolylines = {};
 
 // Strategy descriptions
@@ -1745,13 +1760,82 @@ function createCarIcon(status) {
   });
 }
 
-function createPickupIcon() {
+function createPickupIcon(status) {
+  const color = status === "PICKED_UP" ? "#3B82F6" : status === "MATCHED" ? "#F59E0B" : "#EF4444";
   return L.divIcon({
-    html: `<div style="width:12px;height:12px;border:2px solid #fff;border-radius:50%;background:#EF4444;"></div>`,
+    html: `<div style="width:12px;height:12px;border:2px solid #fff;border-radius:50%;background:${color};"></div>`,
     className: '',
     iconSize: [20, 20],
     iconAnchor: [10, 18]
   });
+}
+
+function showRequestDropoff(request) {
+  if (!request || !Number.isFinite(request.dropoff_lat) || !Number.isFinite(request.dropoff_lon)) return;
+  const location = [request.dropoff_lat, request.dropoff_lon];
+  if (!requestDropoffMarkers[request.id]) {
+    const marker = L.marker(location, {
+      icon: L.divIcon({
+        html: '<div style="width:14px;height:14px;border:3px solid #fff;border-radius:50%;background:#2563EB;box-shadow:0 0 0 2px #2563EB;"></div>',
+        className: '',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      }),
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: 1000
+    }).addTo(map);
+    marker.bindTooltip(`Điểm trả của <b>${request.id}</b>`, {
+      permanent: true,
+      direction: 'top',
+      offset: [0, -8]
+    });
+    requestDropoffMarkers[request.id] = marker;
+  } else {
+    requestDropoffMarkers[request.id].setLatLng(location);
+  }
+
+  if (Array.isArray(request.route) && request.route.length > 1) {
+    if (!requestRouteLines[request.id]) {
+      requestRouteLines[request.id] = L.polyline(request.route, {
+        color: '#2563EB',
+        weight: 4,
+        opacity: 0.85,
+        dashArray: '8 8',
+        lineCap: 'round',
+        interactive: false
+      }).addTo(map);
+    } else {
+      requestRouteLines[request.id].setLatLngs(request.route);
+    }
+  }
+}
+
+function hideRequestDropoff(requestId) {
+  const marker = requestDropoffMarkers[requestId];
+  if (marker) {
+    map.removeLayer(marker);
+    delete requestDropoffMarkers[requestId];
+  }
+  const routeLine = requestRouteLines[requestId];
+  if (routeLine) {
+    map.removeLayer(routeLine);
+    delete requestRouteLines[requestId];
+  }
+}
+
+function requestTooltipContent(request) {
+  const driverLabel = request.driver_id
+    ? request.status === 'PICKED_UP'
+      ? `Đang trên xe ${request.driver_id}`
+      : `Đã ghép với xe ${request.driver_id}`
+    : null;
+  const stateLabel = request.status === 'PICKED_UP'
+    ? 'Khách đang trên xe'
+    : request.status === 'MATCHED'
+      ? 'Đã ghép tài xế'
+      : `Đang chờ: ${formatWaitTime(request.wait_time || 0)}s`;
+  return `<b>${request.id}</b><br>${stateLabel}${driverLabel ? `<br>${driverLabel}` : ''}<br>Di chuột để xem điểm trả`;
 }
 
 // =============================================
@@ -1943,13 +2027,28 @@ function renderTickData(data) {
   // Update Drivers on Map & Popups
   data.drivers.forEach(d => {
     const speed = (d.speed_kmh !== undefined) ? d.speed_kmh : (d.status === "IDLE" ? 0 : 30);
+    const activeForDriver = (data.active || []).filter(request => request.driver_id === d.id);
+    const pickupRequests = [...new Set([
+      ...(Array.isArray(d.pickup_requests) ? d.pickup_requests : []),
+      ...activeForDriver
+        .filter(request => request.status === "MATCHED")
+        .map(request => request.id)
+    ])];
+    const passengers = Array.isArray(d.passengers) ? d.passengers : [];
     const statusLabels = {
       "IDLE": "<span style='color:#22C55E;font-weight:bold;'>Đang rảnh</span>",
       "EN_ROUTE_PICKUP": "<span style='color:#F59E0B;font-weight:bold;'>Đang đi đón khách</span>",
       "OCCUPIED": "<span style='color:#3B82F6;font-weight:bold;'>Đang chở khách</span>"
     };
+    const driverActivity = pickupRequests.length && passengers.length
+      ? `Đang chở khách ${passengers.join(', ')}; ghé đón ${pickupRequests.join(', ')}`
+      : pickupRequests.length
+        ? `Đang đi đón ${pickupRequests.join(', ')}`
+        : passengers.length
+          ? `Đang chở khách ${passengers.join(', ')}`
+        : statusLabels[d.status] || d.status;
 
-    const tooltipContent = `<b>${d.id}</b> • <b>${speed} km/h</b><br>[${d.status}]`;
+    const tooltipContent = `<b>${d.id}</b> • <b>${speed} km/h</b><br>${driverActivity}`;
 
     const popupContent = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:12px;color:#1F2937;line-height:1.6;min-width:210px;">
@@ -1957,12 +2056,13 @@ function renderTickData(data) {
           <span>Tài xế: ${d.id}</span>
           <span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#E5E7EB;color:#374151;">${d.status}</span>
         </div>
-        <div><strong>Trạng thái:</strong> ${statusLabels[d.status] || d.status}</div>
+        <div><strong>Trạng thái:</strong> ${driverActivity}</div>
+        ${pickupRequests.length ? `<div><strong>Đang đón:</strong> ${pickupRequests.join(', ')}</div>` : ''}
         <div style="margin:6px 0;background:#EFF6FF;border-left:3px solid #3B82F6;padding:5px 8px;border-radius:3px;">
           <strong style="color:#1E40AF;">Vận tốc di chuyển:</strong>
           <span style="font-size:14px;font-weight:bold;color:#2563EB;margin-left:4px;">${speed} km/h</span>
         </div>
-        <div><strong>Khách trên xe:</strong> ${d.passengers && d.passengers.length ? d.passengers.join(', ') : 'Không có'}</div>
+        <div><strong>Khách trên xe:</strong> ${passengers.length ? passengers.join(', ') : 'Không có'}</div>
         <div><strong>Quãng đường đã đi:</strong> ${d.distance_km || 0} km</div>
         <div><strong>Thời gian hoạt động:</strong> ${d.busy_time || 0}s</div>
       </div>
@@ -1989,7 +2089,21 @@ function renderTickData(data) {
       const speed = (d.speed_kmh !== undefined) ? d.speed_kmh : (d.status === "IDLE" ? 0 : 30);
       const isMoving = speed > 0;
       const speedColor = isMoving ? "#38BDF8" : "#64748B";
-      const statusLabel = d.status === "IDLE" ? "Rảnh" : (d.status === "EN_ROUTE_PICKUP" ? "Đi đón" : "Chở khách");
+      const activeForDriver = (data.active || []).filter(request => request.driver_id === d.id);
+      const pickupRequests = [...new Set([
+        ...(Array.isArray(d.pickup_requests) ? d.pickup_requests : []),
+        ...activeForDriver
+          .filter(request => request.status === "MATCHED")
+          .map(request => request.id)
+      ])];
+      const hasPassengers = Array.isArray(d.passengers) && d.passengers.length > 0;
+      const statusLabel = pickupRequests.length && hasPassengers
+        ? `Chở ${d.passengers.join(', ')} · ghé đón`
+        : d.status === "IDLE"
+          ? "Rảnh"
+          : d.status === "EN_ROUTE_PICKUP"
+            ? pickupRequests.length ? `Đi đón ${pickupRequests.join(', ')}` : "Đi đón"
+            : hasPassengers ? `Chở ${d.passengers.join(', ')}` : "Chở khách";
       return `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg-card-sub);border-radius:6px;font-size:12px;">
           <div style="display:flex;align-items:center;gap:6px;">
@@ -2005,26 +2119,41 @@ function renderTickData(data) {
     }).join('');
   }
 
-  // Update Pending Requests on Map
-  const currentPendingIds = new Set(data.pending.map(p => p.id));
-  Object.keys(pendingMarkers).forEach(id => {
-    if (!currentPendingIds.has(id)) {
-      map.removeLayer(pendingMarkers[id]);
-      delete pendingMarkers[id];
+  // Keep matched requests visible so hovering any passenger reveals their destination.
+  const requests = [
+    ...(data.pending || []).map(request => ({ ...request, status: 'WAITING' })),
+    ...(data.active || [])
+  ];
+  const currentRequestIds = new Set(requests.map(request => request.id));
+  Object.keys(requestMarkers).forEach(id => {
+    if (!currentRequestIds.has(id)) {
+      map.removeLayer(requestMarkers[id]);
+      delete requestMarkers[id];
       delete pendingRequestTimes[id];
+      hideRequestDropoff(id);
     }
   });
-  data.pending.forEach(p => {
-    const tooltip = `<b>${p.id}</b><br>Đang chờ (mô phỏng): ${formatWaitTime(p.wait_time)}s`;
-    if (!pendingMarkers[p.id]) {
-      const marker = L.marker([p.pickup_lat, p.pickup_lon], { icon: createPickupIcon() }).addTo(map);
+  requests.forEach(request => {
+    const tooltip = requestTooltipContent(request);
+    if (!requestMarkers[request.id]) {
+      const marker = L.marker([request.pickup_lat, request.pickup_lon], {
+        icon: createPickupIcon(request.status)
+      }).addTo(map);
+      marker.requestData = request;
       marker.bindTooltip(tooltip, { direction: 'top' });
-      pendingMarkers[p.id] = marker;
-      pendingRequestTimes[p.id] = p.request_time;
+      marker.on('mouseover', () => showRequestDropoff(marker.requestData));
+      marker.on('mouseout', () => hideRequestDropoff(marker.requestData.id));
+      requestMarkers[request.id] = marker;
     } else {
-      pendingMarkers[p.id].setTooltipContent(tooltip);
-      pendingRequestTimes[p.id] = p.request_time;
+      const marker = requestMarkers[request.id];
+      marker.requestData = request;
+      marker.setLatLng([request.pickup_lat, request.pickup_lon]);
+      marker.setIcon(createPickupIcon(request.status));
+      marker.setTooltipContent(tooltip);
+      if (requestDropoffMarkers[request.id]) showRequestDropoff(request);
     }
+    if (request.status === 'WAITING') pendingRequestTimes[request.id] = request.request_time;
+    else delete pendingRequestTimes[request.id];
   });
 
   // Update Chart
@@ -2049,12 +2178,11 @@ function updateLiveClock() {
   document.getElementById('clockDisplay').textContent =
     `T = ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-  Object.entries(pendingMarkers).forEach(([id, marker]) => {
+  Object.entries(requestMarkers).forEach(([id, marker]) => {
     const requestTime = pendingRequestTimes[id];
     if (requestTime !== undefined) {
-      marker.setTooltipContent(
-        `<b>${id}</b><br>Đang chờ (mô phỏng): ${formatWaitTime(currentTime - requestTime)}s`
-      );
+      marker.requestData.wait_time = currentTime - requestTime;
+      marker.setTooltipContent(requestTooltipContent(marker.requestData));
     }
   });
 }
@@ -2099,6 +2227,7 @@ function setRunningState(running) {
   document.querySelectorAll('.strat-btn').forEach(b => b.disabled = running);
   document.getElementById('inpDrivers').disabled = running;
   document.getElementById('inpArrival').disabled = running;
+  document.querySelectorAll('.scenario-input').forEach(input => input.disabled = running);
   if (!running) setPausedState(false);
   if (liveClockTimer) clearInterval(liveClockTimer);
   liveClockTimer = running ? setInterval(updateLiveClock, 250) : null;
@@ -2116,6 +2245,11 @@ function setPausedState(paused) {
 document.getElementById('btnStart').addEventListener('click', async () => {
   const numDrivers = parseInt(document.getElementById('inpDrivers').value) || 10;
   const arrivalRate = parseFloat(document.getElementById('inpArrival').value) || 0.04;
+  const scenario = readScenarioOptions();
+  if (!scenario) {
+    addFeedItem('Thông số kịch bản không hợp lệ.');
+    return;
+  }
 
   if (serverOnline) {
     try {
@@ -2126,7 +2260,10 @@ document.getElementById('btnStart').addEventListener('click', async () => {
           strategy: currentStrategy,
           num_drivers: numDrivers,
           arrival_rate: arrivalRate,
-          speed_multiplier: speedMult
+          speed_multiplier: speedMult,
+          start_hour: scenario.startHour,
+          batch_window_seconds: scenario.batchWindowSeconds,
+          use_spatiotemporal_demand: scenario.useSpatiotemporalDemand
         })
       });
       if (res.ok) {
@@ -2203,9 +2340,24 @@ document.getElementById('btnRunBenchAction').addEventListener('click', async () 
   const pBar = document.getElementById('benchProgressBar');
   const pText = document.getElementById('benchStatusText');
   const durationMinutes = Number(document.getElementById('benchDurationMinutes').value);
+  const numRuns = Number(document.getElementById('benchRuns').value);
+  const warmupMinutes = Number(document.getElementById('benchWarmup').value);
   const seed = Number(document.getElementById('benchSeed').value);
+  const scenario = readScenarioOptions();
+  if (!scenario) {
+    pText.textContent = 'Giờ bắt đầu hoặc cửa sổ gom lô không hợp lệ.';
+    return;
+  }
   if (!Number.isInteger(durationMinutes) || durationMinutes < 5 || durationMinutes > 120) {
     pText.textContent = 'Thời lượng phải là số nguyên từ 5 đến 120 phút.';
+    return;
+  }
+  if (!Number.isInteger(numRuns) || numRuns < 1 || numRuns > 30) {
+    pText.textContent = 'Số lượt chạy phải là số nguyên từ 1 đến 30.';
+    return;
+  }
+  if (!Number.isInteger(warmupMinutes) || warmupMinutes < 0 || warmupMinutes >= durationMinutes) {
+    pText.textContent = 'Warm-up phải là số nguyên không âm và ngắn hơn thời lượng mô phỏng.';
     return;
   }
   if (!Number.isInteger(seed)) {
@@ -2224,13 +2376,20 @@ document.getElementById('btnRunBenchAction').addEventListener('click', async () 
           num_drivers: parseInt(document.getElementById('inpDrivers').value) || 8,
           arrival_rate: parseFloat(document.getElementById('inpArrival').value) || 0.03,
           sim_seconds: durationMinutes * 60,
-          seed
+          seed,
+          num_runs: numRuns,
+          warmup_seconds: warmupMinutes * 60,
+          start_hour: scenario.startHour,
+          batch_window_seconds: scenario.batchWindowSeconds,
+          use_spatiotemporal_demand: scenario.useSpatiotemporalDemand
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Benchmark thất bại');
       pBar.style.width = '100%';
-      pText.textContent = `Hoàn thành một lượt ${durationMinutes} phút mô phỏng mỗi chiến lược, seed ${seed}.`;
+      const seedEnd = seed + numRuns - 1;
+      pText.textContent =
+        `Hoàn thành ${numRuns} lượt × ${durationMinutes} phút/chiến lược, seed ${seed}–${seedEnd}, warm-up ${warmupMinutes} phút.`;
       renderBenchmarkTable(data.results);
     } catch (error) {
       pBar.style.width = '0%';
@@ -2242,21 +2401,71 @@ document.getElementById('btnRunBenchAction').addEventListener('click', async () 
   }
 });
 
-function renderBenchmarkTable(results) {
-  // Find best/worst
-  let bestWait = Math.min(...results.map(r => r.avg_wait_time));
-  let bestCancel = Math.min(...results.map(r => r.cancellation_rate));
-  let bestUtil = Math.max(...results.map(r => r.driver_utilization));
+function readScenarioOptions() {
+  const startHour = Number(document.getElementById('scenarioStartHour').value);
+  const batchWindowSeconds = Number(document.getElementById('scenarioBatchWindow').value);
+  if (!Number.isInteger(startHour) || startHour < 0 || startHour > 23) {
+    return null;
+  }
+  if (!Number.isInteger(batchWindowSeconds) || batchWindowSeconds < 1 || batchWindowSeconds > 300) {
+    return null;
+  }
+  return {
+    startHour,
+    batchWindowSeconds,
+    useSpatiotemporalDemand:
+      document.getElementById('scenarioDemandModel').value === 'spatiotemporal'
+  };
+}
 
-  let rows = results.map(r => `
+function renderBenchmarkTable(results) {
+  if (!Array.isArray(results) || results.length === 0) {
+    throw new Error('Máy chủ không trả về kết quả benchmark hợp lệ.');
+  }
+
+  const normalizedResults = results.map(result => {
+    if (!result || typeof result !== 'object') {
+      throw new Error('Một dòng kết quả benchmark không hợp lệ.');
+    }
+    const metrics = result.metrics && typeof result.metrics === 'object'
+      ? result.metrics
+      : result;
+    const hasMetrics = ['avg_wait_time', 'cancellation_rate', 'driver_utilization']
+      .some(key => typeof metrics[key] === 'number' && Number.isFinite(metrics[key]));
+    if (!hasMetrics) {
+      throw new Error('Máy chủ trả về kết quả nhưng thiếu các chỉ số benchmark cần thiết.');
+    }
+    return {
+      ...result,
+      metrics,
+      stddev: result.stddev && typeof result.stddev === 'object' ? result.stddev : {}
+    };
+  });
+  const bestMetric = (key, direction) => {
+    const values = normalizedResults
+      .map(result => result.metrics[key])
+      .filter(value => typeof value === 'number' && Number.isFinite(value));
+    if (values.length === 0) return null;
+    return direction === 'min' ? Math.min(...values) : Math.max(...values);
+  };
+  const bestWait = bestMetric('avg_wait_time', 'min');
+  const bestCancel = bestMetric('cancellation_rate', 'min');
+  const bestUtil = bestMetric('driver_utilization', 'max');
+  const legacyResponse = normalizedResults.some(result => !result.metrics || !result.stddev ||
+    !['avg_wait_time', 'cancellation_rate', 'driver_utilization'].every(
+      key => typeof result.stddev[key] === 'number' && Number.isFinite(result.stddev[key])
+    ));
+
+  let rows = normalizedResults.map(r => `
     <tr>
       <td class="strat-name">${r.name}</td>
-      <td>${r.total_requests}</td>
-      <td>${r.completed_requests} (${r.completion_rate}%)</td>
-      <td class="${r.cancellation_rate === bestCancel ? 'best-metric' : ''}">${r.cancellation_rate}%</td>
-      <td class="${r.avg_wait_time === bestWait ? 'best-metric' : ''}">${r.avg_wait_time}s</td>
-      <td class="${r.driver_utilization === bestUtil ? 'best-metric' : ''}">${r.driver_utilization}%</td>
-      <td>${r.total_distance_km} km</td>
+      <td>${formatMeanSd(r.metrics.total_requests, r.stddev.total_requests)}</td>
+      <td>${formatMeanSd(r.metrics.completed_requests, r.stddev.completed_requests)}<br>${formatMeanSd(r.metrics.completion_rate, r.stddev.completion_rate)}%</td>
+      <td>${formatMeanSd(r.metrics.unfinished_requests, r.stddev.unfinished_requests)}</td>
+      <td class="${bestCancel !== null && r.metrics.cancellation_rate === bestCancel ? 'best-metric' : ''}">${formatMeanSd(r.metrics.cancellation_rate, r.stddev.cancellation_rate)}%</td>
+      <td class="${bestWait !== null && r.metrics.avg_wait_time === bestWait ? 'best-metric' : ''}">${formatMeanSd(r.metrics.avg_wait_time, r.stddev.avg_wait_time)}s</td>
+      <td class="${bestUtil !== null && r.metrics.driver_utilization === bestUtil ? 'best-metric' : ''}">${formatMeanSd(r.metrics.driver_utilization, r.stddev.driver_utilization)}%</td>
+      <td>${formatMeanSd(r.metrics.total_distance_km, r.stddev.total_distance_km)} km</td>
     </tr>
   `).join('');
 
@@ -2265,20 +2474,32 @@ function renderBenchmarkTable(results) {
       <thead>
         <tr>
           <th>Chiến lược</th>
-          <th>Tổng yêu cầu</th>
-          <th>Hoàn thành</th>
-          <th>Tỷ lệ hủy</th>
-          <th>Đón TB</th>
-          <th>Hiệu suất tài xế</th>
-          <th>Tổng di chuyển</th>
+          <th>${legacyResponse ? 'Tổng yêu cầu' : 'Tổng yêu cầu TB'}</th>
+          <th>${legacyResponse ? 'Hoàn thành (số; %)' : 'Hoàn thành (số TB; % TB)'}</th>
+          <th>Chưa hoàn tất</th>
+          <th>${legacyResponse ? 'Tỷ lệ hủy' : 'Tỷ lệ hủy TB'}</th>
+          <th>${legacyResponse ? 'Chờ đón (s)' : 'Chờ đón TB (s)'}</th>
+          <th>${legacyResponse ? 'Sử dụng xe (%)' : 'Sử dụng xe TB (%)'}</th>
+          <th>${legacyResponse ? 'Quãng đường (km)' : 'Quãng đường TB (km)'}</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
     <div style="margin-top:14px;padding:10px 14px;background:var(--bg-main);border-radius:8px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
-      <strong>Cách đọc kết quả:</strong> một lượt benchmark dùng cùng cấu hình và seed để các chiến lược nhận kịch bản nhu cầu có thể so sánh. Kết quả vẫn có thể dao động theo seed; nên chạy nhiều seed và báo cáo trung bình cùng độ lệch chuẩn trước khi kết luận.
+      ${legacyResponse
+        ? '<strong>Máy chủ đang dùng định dạng benchmark cũ.</strong> Các giá trị có sẵn vẫn được hiển thị, nhưng không có độ lệch chuẩn hoặc một số KPI. Hãy khởi động lại server để áp dụng benchmark nhiều lượt.'
+        : '<strong>Cách đọc kết quả:</strong> mỗi lượt benchmark dùng cùng cấu hình và seed cho các chiến lược. Kết quả hiển thị trung bình ± độ lệch chuẩn; nên chạy nhiều seed trước khi kết luận.'}
     </div>
   `;
+}
+
+function formatMeanSd(meanValue, standardDeviation) {
+  if (typeof meanValue !== 'number' || !Number.isFinite(meanValue)) return '—';
+  const formattedMean = meanValue.toFixed(2);
+  if (typeof standardDeviation !== 'number' || !Number.isFinite(standardDeviation)) {
+    return formattedMean;
+  }
+  return `${formattedMean} ± ${standardDeviation.toFixed(2)}`;
 }
 
 // Fallback client simulation if server is offline

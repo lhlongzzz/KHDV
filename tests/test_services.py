@@ -12,6 +12,8 @@ from services.matching_service.contracts import (
 )
 from services.matching_service.service import MatchingService
 from services.simulation_service import SimulationService
+from core_engine.entities import Driver, DriverState, Request, RequestState
+from core_engine.simulator import SimulationEngine
 import server
 
 
@@ -45,6 +47,99 @@ def test_demand_service_returns_transport_neutral_request_contract():
         destination_node=202,
         request_time=0.0,
     )
+
+
+def test_demand_service_repeats_request_stream_for_same_seed():
+    class CyclingNodeProvider:
+        def __init__(self):
+            self.node = 101
+
+        def get_random_node(self):
+            self.node = 202 if self.node == 101 else 101
+            return self.node
+
+    config = DemandConfigDTO(
+        arrival_rate=0.1,
+        seed=7,
+        use_time_profile=False,
+        use_spatial_profile=False,
+    )
+    first = DemandService(CyclingNodeProvider(), config).generate_tick_requests(60.0)
+    second = DemandService(CyclingNodeProvider(), config).generate_tick_requests(60.0)
+
+    assert first == second
+
+
+def test_snapshot_identifies_pickup_request_without_listing_it_as_onboard():
+    class SnapshotMap:
+        @staticmethod
+        def get_node_latlon(node_id):
+            return (float(node_id), float(node_id))
+
+        @staticmethod
+        def get_shortest_path(origin, destination):
+            return [origin, destination]
+
+    request = Request(
+        "R_0001",
+        202,
+        303,
+        request_time=0.0,
+        status=RequestState.MATCHED,
+        matched_driver_id="D_01",
+    )
+    driver = Driver(
+        "D_01",
+        101,
+        status=DriverState.EN_ROUTE_PICKUP,
+        assigned_request=request,
+    )
+    simulation = SimulationEngine(SnapshotMap(), [driver])
+    simulation.active_requests[request.request_id] = request
+
+    snapshot = server.build_snapshot(simulation, [request])
+
+    assert snapshot["drivers"][0]["pickup_requests"] == ["R_0001"]
+    assert snapshot["drivers"][0]["passengers"] == []
+    assert snapshot["active"][0]["dropoff_lat"] == 303.0
+    assert snapshot["active"][0]["route"] == [[202.0, 202.0], [303.0, 303.0]]
+    assert snapshot["active"][0]["status"] == "MATCHED"
+
+
+def test_snapshot_identifies_driver_for_picked_up_request_and_lists_passenger():
+    class SnapshotMap:
+        @staticmethod
+        def get_node_latlon(node_id):
+            return (float(node_id), float(node_id))
+
+        @staticmethod
+        def get_shortest_path(origin, destination):
+            return [origin, destination]
+
+    request = Request(
+        "R_0002",
+        202,
+        303,
+        request_time=0.0,
+        status=RequestState.PICKED_UP,
+        matched_driver_id="D_02",
+        pickup_time=10.0,
+    )
+    driver = Driver(
+        "D_02",
+        202,
+        status=DriverState.OCCUPIED,
+        assigned_request=request,
+    )
+    simulation = SimulationEngine(SnapshotMap(), [driver])
+    simulation.active_requests[request.request_id] = request
+
+    snapshot = server.build_snapshot(simulation, [request])
+
+    assert snapshot["active"][0]["driver_id"] == "D_02"
+    assert snapshot["active"][0]["status"] == "PICKED_UP"
+    assert snapshot["drivers"][0]["passengers"] == ["R_0002"]
+    assert snapshot["drivers"][0]["pickup_requests"] == []
 
 
 def test_matching_service_consumes_contracts_and_returns_dispatch_dto():
@@ -163,3 +258,121 @@ def test_pause_endpoint_pauses_and_resumes_existing_runtime(monkeypatch):
     assert server.pause_event.is_set() is False
     assert server.sim_state["paused"] is False
     server.sim_state["running"] = False
+
+
+def test_benchmark_endpoint_runs_heavy_work_off_event_loop_and_rejects_bad_config(monkeypatch):
+    import threading
+
+    request_thread = threading.current_thread()
+    benchmark_threads = []
+    monkeypatch.setitem(server.sim_state, "running", False)
+    monkeypatch.setattr(server, "road_map", object())
+    monkeypatch.setattr(server, "map_service", object())
+
+    def fake_benchmark(*_args, **_kwargs):
+        benchmark_threads.append(threading.current_thread())
+        return {"configuration": {}, "results": [{"key": "greedy"}]}
+
+    monkeypatch.setattr(server, "run_benchmark", fake_benchmark)
+    result = asyncio.run(server.run_benchmark_api({
+        "sim_seconds": 300,
+        "warmup_seconds": 0,
+        "num_runs": 1,
+        "num_drivers": 3,
+        "arrival_rate": 0.03,
+    }))
+
+    assert result["results"][0]["name"] == server.STRATEGY_LABELS["greedy"]
+    assert benchmark_threads[0] is not request_thread
+
+    invalid = asyncio.run(server.run_benchmark_api({"num_runs": "invalid"}))
+
+    assert invalid.status_code == 422
+
+
+def test_demand_profile_changes_rate_by_hour_and_spatial_od_uses_separate_zones():
+    from services.base import ServiceResult
+    from services.map_service.contracts import NodeDTO
+
+    class ZonedNodeProvider:
+        nodes = [
+            NodeDTO(1, 21.0000, 105.0000),
+            NodeDTO(2, 21.0001, 105.0001),
+            NodeDTO(3, 21.0002, 105.0002),
+            NodeDTO(4, 21.0100, 105.0100),
+            NodeDTO(5, 21.0101, 105.0101),
+            NodeDTO(6, 21.0102, 105.0102),
+            NodeDTO(7, 21.0103, 105.0103),
+            NodeDTO(8, 21.0104, 105.0104),
+            NodeDTO(9, 21.0105, 105.0105),
+            NodeDTO(10, 21.0106, 105.0106),
+        ]
+
+        @classmethod
+        def get_all_nodes(cls):
+            return ServiceResult.ok(cls.nodes)
+
+        @classmethod
+        def get_random_node(cls):
+            return cls.nodes[0].id
+
+        @classmethod
+        def get_node_latlon(cls, node_id):
+            node = next(node for node in cls.nodes if node.id == node_id)
+            return node.lat, node.lon
+
+    config = DemandConfigDTO(
+        arrival_rate=0.1,
+        seed=3,
+        start_hour=0,
+        core_zone_weight=1.0,
+        cross_zone_probability=1.0,
+    )
+    service = DemandService(ZonedNodeProvider(), config)
+
+    origin, destination = service._sample_origin_and_destination()
+
+    assert service._time_multiplier(0) == 0.35
+    assert service._time_multiplier(7 * 3600) == 1.6
+    assert origin in service._zones[0]
+    assert destination in service._zones[1]
+
+
+def test_hungarian_dispatch_waits_for_configured_batch_boundary(monkeypatch):
+    class FakeMapService:
+        is_ready = True
+        road_map = object()
+
+        @staticmethod
+        def get_random_node():
+            return 101
+
+    monkeypatch.setattr("services.simulation_service.SimulationEngine", lambda *_args, **_kwargs: object())
+    runtime = SimulationService(
+        FakeMapService(),
+        num_drivers=1,
+        strategy=DispatchStrategy.HUNGARIAN,
+        seed=None,
+        batch_window_seconds=5,
+    )
+    calls = []
+
+    class FakeMatchingService:
+        @staticmethod
+        def dispatch(drivers, requests, strategy):
+            calls.append((drivers, requests, strategy))
+            return ServiceResult.ok(DispatchResultDTO(
+                strategy=strategy.value,
+                assignments=[],
+                matched_count=0,
+                unmatched_count=len(requests),
+                execution_time_ms=0.1,
+            ))
+
+    runtime.matching_service = FakeMatchingService()
+    driver = runtime._dispatch([], [], None, 4.0)
+    batch = runtime._dispatch([], [], None, 5.0)
+
+    assert driver == []
+    assert batch == []
+    assert len(calls) == 1

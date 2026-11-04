@@ -23,6 +23,7 @@ import os
 import threading
 import time
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from typing import Dict, List, Optional, Set
 
 import uvicorn
@@ -39,6 +40,7 @@ if CURRENT_DIR not in sys.path:
 from core_engine.entities import Driver, Request, DriverState
 from core_engine.map_network import RealRoadMap
 from core_engine.simulator import SimulationEngine
+from services.benchmark_service import run_benchmark
 from services.map_service.service import MapService
 from services.matching_service.contracts import DispatchStrategy
 from services.simulation_service import SimulationService
@@ -69,6 +71,9 @@ sim_state = {
     "strategy_name": "S1: Greedy",
     "num_drivers": 10,
     "arrival_rate": 0.04,
+    "batch_window_seconds": 30.0,
+    "start_hour": 7,
+    "use_spatiotemporal_demand": True,
     "speed_multiplier": 2.0,
     "current_time": 0.0,
 }
@@ -77,6 +82,7 @@ active_connections: Set[WebSocket] = set()
 sim_thread: Optional[threading.Thread] = None
 stop_event = threading.Event()
 pause_event = threading.Event()
+benchmark_running = False
 sim_engine_ref: Optional[SimulationEngine] = None
 all_requests_ref: List[Request] = []
 logger = logging.getLogger(__name__)
@@ -122,6 +128,24 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # ============================================================
 # Snapshot Builder
 # ============================================================
+@lru_cache(maxsize=4096)
+def _request_route_coordinates(road_map, origin_node: int, destination_node: int) -> list:
+    """Cache the static road geometry for each pickup/dropoff pair."""
+    path = road_map.get_shortest_path(origin_node, destination_node)
+    if not path:
+        return []
+    get_geometry = getattr(road_map, "get_route_geometry", None)
+    coordinates = (
+        get_geometry(path)
+        if callable(get_geometry) and len(path) > 1
+        else [road_map.get_node_latlon(node_id) for node_id in path]
+    )
+    return [
+        [round(lat, 6), round(lon, 6)]
+        for lat, lon in coordinates
+    ]
+
+
 def build_snapshot(sim: SimulationEngine, all_requests: List[Request]) -> dict:
     """Tạo gói dữ liệu đồng bộ thời gian thực gửi qua WebSocket cho Web UI."""
     driver_data = []
@@ -144,11 +168,17 @@ def build_snapshot(sim: SimulationEngine, all_requests: List[Request]) -> dict:
             route_coords = [sim.map.get_node_latlon(node) for node in d.current_route[:25]]
 
         passengers_onboard = []
+        pickup_requests = []
         if d.assigned_request:
-            passengers_onboard.append(d.assigned_request.request_id)
+            if d.assigned_request.status.value == "MATCHED":
+                pickup_requests.append(d.assigned_request.request_id)
+            elif d.assigned_request.status.value == "PICKED_UP":
+                passengers_onboard.append(d.assigned_request.request_id)
         if d.stop_queue:
             for r, kind, _ in d.stop_queue:
-                if kind == "dropoff" and r.request_id not in passengers_onboard:
+                if kind == "pickup" and r.request_id not in pickup_requests:
+                    pickup_requests.append(r.request_id)
+                elif kind == "dropoff" and r.status.value == "PICKED_UP" and r.request_id not in passengers_onboard:
                     passengers_onboard.append(r.request_id)
 
         # Vận tốc di chuyển thực tế (km/h)
@@ -162,6 +192,7 @@ def build_snapshot(sim: SimulationEngine, all_requests: List[Request]) -> dict:
             "status": status_val,
             "speed_kmh": current_speed_kmh,
             "passengers": passengers_onboard,
+            "pickup_requests": pickup_requests,
             "route": route_coords,
             "busy_time": round(d.total_busy_time, 1),
             "distance_km": round(d.total_distance / 1000.0, 2),
@@ -177,6 +208,7 @@ def build_snapshot(sim: SimulationEngine, all_requests: List[Request]) -> dict:
             "pickup_lon": round(lon, 6),
             "dropoff_lat": round(dlat, 6),
             "dropoff_lon": round(dlon, 6),
+            "route": _request_route_coordinates(sim.map, r.origin_node, r.destination_node),
             "wait_time": round(sim.current_time - r.request_time, 1),
             "request_time": r.request_time,
         })
@@ -192,7 +224,10 @@ def build_snapshot(sim: SimulationEngine, all_requests: List[Request]) -> dict:
             "pickup_lon": round(lon, 6),
             "dropoff_lat": round(dlat, 6),
             "dropoff_lon": round(dlon, 6),
+            "route": _request_route_coordinates(sim.map, r.origin_node, r.destination_node),
             "status": r.status.value,
+            "request_time": r.request_time,
+            "wait_time": round(sim.current_time - r.request_time, 1),
         })
 
     kpis = sim.get_kpis(len(all_requests))
@@ -238,12 +273,24 @@ def send_ws_event(message: dict):
 # ============================================================
 # Vòng lặp mô phỏng chạy ngầm (Background Simulation Thread)
 # ============================================================
-def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, speed_mult: float, seed: int = 42):
+def simulation_worker(
+    strategy_key: str,
+    num_drivers: int,
+    arrival_rate: float,
+    speed_mult: float,
+    seed: int = 42,
+    start_hour: int = 7,
+    batch_window_seconds: float = 30.0,
+    use_spatiotemporal_demand: bool = True,
+):
     sim_state["running"] = True
     sim_state["paused"] = False
 
     try:
-        _run_simulation(strategy_key, num_drivers, arrival_rate, speed_mult, seed)
+        _run_simulation(
+            strategy_key, num_drivers, arrival_rate, speed_mult, seed,
+            start_hour, batch_window_seconds, use_spatiotemporal_demand,
+        )
     except Exception as exc:
         logger.exception("Simulation worker failed")
         send_ws_event({"type": "sim_error", "error": str(exc)})
@@ -252,7 +299,16 @@ def simulation_worker(strategy_key: str, num_drivers: int, arrival_rate: float, 
         sim_state["paused"] = False
 
 
-def _run_simulation(strategy_key: str, num_drivers: int, arrival_rate: float, speed_mult: float, seed: int):
+def _run_simulation(
+    strategy_key: str,
+    num_drivers: int,
+    arrival_rate: float,
+    speed_mult: float,
+    seed: int,
+    start_hour: int,
+    batch_window_seconds: float,
+    use_spatiotemporal_demand: bool,
+):
     global road_map, map_service, sim_engine_ref, all_requests_ref
 
     if map_service is None or not map_service.is_ready:
@@ -266,6 +322,9 @@ def _run_simulation(strategy_key: str, num_drivers: int, arrival_rate: float, sp
         arrival_rate=arrival_rate,
         strategy=strategy,
         seed=seed,
+        start_hour=start_hour,
+        batch_window_seconds=batch_window_seconds,
+        use_spatiotemporal_demand=use_spatiotemporal_demand,
     )
     sim = runtime.engine
     sim_engine_ref = sim
@@ -281,6 +340,9 @@ def _run_simulation(strategy_key: str, num_drivers: int, arrival_rate: float, sp
         "strategy_name": label,
         "num_drivers": num_drivers,
         "arrival_rate": arrival_rate,
+        "batch_window_seconds": batch_window_seconds,
+        "start_hour": start_hour,
+        "use_spatiotemporal_demand": use_spatiotemporal_demand,
     })
 
     while sim.current_time < total_time and not stop_event.is_set():
@@ -382,16 +444,30 @@ async def start_simulation(payload: dict):
     global sim_thread
     if sim_state["running"]:
         return JSONResponse({"error": "Mô phỏng đang chạy"}, status_code=400)
+    if benchmark_running:
+        return JSONResponse({"error": "Vui lòng đợi benchmark hoàn tất trước khi bắt đầu mô phỏng"}, status_code=409)
     if not road_map or map_service is None:
         return JSONResponse({"error": "Bản đồ chưa được tải"}, status_code=503)
 
-    strategy = STRATEGY_ALIASES.get(payload.get("strategy", "greedy"), payload.get("strategy", "greedy"))
-    num_drivers = int(payload.get("num_drivers", 10))
-    arrival_rate = float(payload.get("arrival_rate", 0.04))
-    speed_mult = float(payload.get("speed_multiplier", 2.0))
+    try:
+        strategy = STRATEGY_ALIASES.get(payload.get("strategy", "greedy"), payload.get("strategy", "greedy"))
+        num_drivers = int(payload.get("num_drivers", 10))
+        arrival_rate = float(payload.get("arrival_rate", 0.04))
+        speed_mult = float(payload.get("speed_multiplier", 2.0))
+        start_hour = int(payload.get("start_hour", 7))
+        batch_window_seconds = float(payload.get("batch_window_seconds", 30.0))
+        use_spatiotemporal_demand = bool(payload.get("use_spatiotemporal_demand", True))
+    except (TypeError, ValueError) as exc:
+        return JSONResponse({"error": f"Cấu hình mô phỏng không hợp lệ: {exc}"}, status_code=422)
 
     if strategy not in STRATEGY_LABELS:
         return JSONResponse({"error": f"Chiến lược không được hỗ trợ: {strategy}"}, status_code=422)
+    if not 0 <= start_hour <= 23:
+        return JSONResponse({"error": "Giờ bắt đầu phải nằm trong khoảng 0–23"}, status_code=422)
+    if not 1 <= batch_window_seconds <= 300:
+        return JSONResponse({"error": "Cửa sổ gom lô phải từ 1 đến 300 giây"}, status_code=422)
+    if not 3 <= num_drivers <= 30 or not 0.001 <= arrival_rate <= 0.2:
+        return JSONResponse({"error": "Số tài xế hoặc cường độ nhu cầu nằm ngoài giới hạn"}, status_code=422)
 
     sim_state.update({
         "strategy": strategy,
@@ -405,7 +481,10 @@ async def start_simulation(payload: dict):
     pause_event.clear()
     sim_thread = threading.Thread(
         target=simulation_worker,
-        args=(strategy, num_drivers, arrival_rate, speed_mult, int(time.time())),
+        args=(
+            strategy, num_drivers, arrival_rate, speed_mult, int(time.time()),
+            start_hour, batch_window_seconds, use_spatiotemporal_demand,
+        ),
         daemon=True,
     )
     sim_state["running"] = True
@@ -447,48 +526,65 @@ async def set_speed(payload: dict):
 @app.post("/api/benchmark")
 async def run_benchmark_api(payload: dict):
     """Chạy benchmark 4 chiến lược trên server và trả về kết quả định lượng so sánh."""
+    global benchmark_running
     if sim_state["running"]:
         return JSONResponse({"error": "Vui lòng dừng mô phỏng hiện tại trước khi chạy benchmark"}, status_code=400)
+    if benchmark_running:
+        return JSONResponse({"error": "Benchmark khác đang chạy, vui lòng thử lại sau"}, status_code=409)
     if not road_map or map_service is None:
         return JSONResponse({"error": "Bản đồ chưa sẵn sàng"}, status_code=503)
 
-    num_drivers = int(payload.get("num_drivers", 8))
-    arrival_rate = float(payload.get("arrival_rate", 0.03))
-    sim_seconds = float(payload.get("sim_seconds", 1200.0))
+    try:
+        num_drivers = int(payload.get("num_drivers", 8))
+        arrival_rate = float(payload.get("arrival_rate", 0.03))
+        sim_seconds = int(payload.get("sim_seconds", 1200))
+        num_runs = int(payload.get("num_runs", 10))
+        warmup_seconds = int(payload.get("warmup_seconds", 300))
+        batch_window_seconds = float(payload.get("batch_window_seconds", 30.0))
+        start_hour = int(payload.get("start_hour", 7))
+        use_spatiotemporal_demand = bool(payload.get("use_spatiotemporal_demand", True))
+        seed = int(payload.get("seed", 42))
+    except (TypeError, ValueError) as exc:
+        return JSONResponse({"error": f"Cấu hình benchmark không hợp lệ: {exc}"}, status_code=422)
     if not 300 <= sim_seconds <= 7200:
         return JSONResponse(
             {"error": "Thời lượng benchmark phải từ 5 đến 120 phút mô phỏng"},
             status_code=422,
         )
-    seed = int(payload.get("seed", 42))
+    if not 1 <= num_runs <= 30:
+        return JSONResponse({"error": "Số lần chạy phải từ 1 đến 30"}, status_code=422)
+    if not 0 <= warmup_seconds < sim_seconds:
+        return JSONResponse({"error": "Warm-up phải nhỏ hơn thời lượng mô phỏng"}, status_code=422)
+    if not 1 <= batch_window_seconds <= 300:
+        return JSONResponse({"error": "Cửa sổ gom lô phải từ 1 đến 300 giây"}, status_code=422)
+    if not 0 <= start_hour <= 23:
+        return JSONResponse({"error": "Giờ bắt đầu phải nằm trong khoảng 0–23"}, status_code=422)
+    if not 3 <= num_drivers <= 30 or not 0.001 <= arrival_rate <= 0.2:
+        return JSONResponse({"error": "Số tài xế hoặc cường độ nhu cầu nằm ngoài giới hạn"}, status_code=422)
 
-    results = []
-    for strategy in DispatchStrategy:
-        runtime = SimulationService(
-            map_service=map_service,
+    benchmark_running = True
+    try:
+        result = await asyncio.to_thread(
+            run_benchmark,
+            map_service,
             num_drivers=num_drivers,
             arrival_rate=arrival_rate,
-            strategy=strategy,
-            seed=seed,
+            sim_seconds=sim_seconds,
+            base_seed=seed,
+            num_runs=num_runs,
+            warmup_seconds=warmup_seconds,
+            batch_window_seconds=batch_window_seconds,
+            start_hour=start_hour,
+            use_spatiotemporal_demand=use_spatiotemporal_demand,
         )
-        all_requests = []
-        while runtime.engine.current_time < sim_seconds:
-            all_requests.extend(runtime.step(1.0))
-        kpis = runtime.engine.get_kpis(len(all_requests))
-        results.append({
-            "key": strategy.value,
-            "name": STRATEGY_LABELS[strategy.value],
-            "total_requests": kpis["total_requests"],
-            "completed_requests": kpis["completed_requests"],
-            "cancelled_requests": kpis["cancelled_requests"],
-            "completion_rate": kpis["completion_rate"],
-            "cancellation_rate": kpis["cancellation_rate"],
-            "avg_wait_time": kpis["avg_wait_time"],
-            "driver_utilization": kpis["driver_utilization"],
-            "total_distance_km": kpis["total_distance_km"],
-        })
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=422)
+    finally:
+        benchmark_running = False
 
-    return {"results": results}
+    for row in result["results"]:
+        row["name"] = STRATEGY_LABELS[row["key"]]
+    return result
 
 
 @app.websocket("/ws/sim")

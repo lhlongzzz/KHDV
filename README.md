@@ -35,7 +35,7 @@ KHDV/
 ├── core_engine/                 # Động cơ mô phỏng không-thời gian (Spatiotemporal Engine)
 │   ├── entities.py              # Thực thể: Driver, Request, DriverState, RequestState
 │   ├── map_network.py           # Bản đồ OSMnx: tải đồ thị đường phố, tính Dijkstra, nội suy tọa độ
-│   ├── demand_generator.py      # Sinh nhu cầu theo Poisson đồng nhất (λ cố định)
+│   ├── demand_generator.py      # Bộ sinh nhu cầu
 │   └── simulator.py             # Quản lý vòng lặp tick mô phỏng, chuyển động xe, đo lường KPIs
 │
 ├── matching/                    # Các chiến lược ghép cặp (Dispatch & Matching Strategies)
@@ -52,7 +52,8 @@ KHDV/
 │   ├── simulation_service.py    # Điều phối và chuyển DTO sang entity lõi
 │   ├── map_service/             # Dữ liệu nút, định tuyến, khoảng cách
 │   ├── demand_service/          # Sinh yêu cầu và phát REQUEST_CREATED
-│   └── matching_service/        # Ghép chuyến qua DriverDTO/TripRequestDTO
+│   ├── matching_service/        # Ghép chuyến qua DriverDTO/TripRequestDTO
+│   └── benchmark_service.py     # Chạy lặp nhiều seed và tổng hợp KPI
 │
 ├── tests/                       # Unit tests cho lõi và các service
 │   ├── test_base.py
@@ -112,17 +113,17 @@ KHDV/
    *(Tỷ lệ phần trăm thời gian tài xế thực sự bận đón hoặc chở khách trên tổng thời gian vận hành).*
 4. **Tổng quãng đường di chuyển và quãng đường chạy rỗng (Total Distance & Deadheading Distance).**
 
-**Giới hạn mô hình hiện tại:** thời điểm đến tuân theo Poisson đồng nhất với λ cố định; điểm đón/trả được chọn ngẫu nhiên đồng đều trên các nút bản đồ. Đây là mô hình nền phù hợp để so thuật toán, chưa mô tả được giờ cao điểm, vùng phát sinh nhu cầu hay luồng O-D thực tế. Nếu báo cáo theo yêu cầu “theo không gian và thời gian”, cần bổ sung λ(t) theo khung giờ và phân phối điểm đón/trả theo vùng hoặc ma trận O-D.
+**Mô hình nhu cầu hiện tại:** số yêu cầu đến tuân theo Poisson không đồng nhất, với cường độ cơ sở λ được điều chỉnh theo profile 24 giờ; người dùng có thể chọn giờ bắt đầu và bật/tắt profile. Vị trí đón/trả được lấy từ hai vùng tổng hợp trên các nút OSM (vùng lõi và vùng ngoài), có xác suất thiên lệch điểm đón về lõi và chọn điểm trả khác vùng. Đây là giả định tổng hợp có seed để tái lập, không phải dữ liệu chuyến xe quan sát hay ma trận O-D thực tế. Báo cáo cần nêu rõ điều này; nếu có dữ liệu thực, nên thay profile giả định bằng phân bố theo thời gian/vùng được hiệu chỉnh từ dữ liệu.
 
 ---
 
 ## 4. Thực nghiệm và so sánh định lượng
 
-Benchmark chạy bốn chiến lược trên cùng cấu hình và seed để tạo kịch bản nhu cầu có thể đối chiếu. Giao diện mặc định 20 phút mô phỏng mỗi chiến lược; có thể chọn 5–120 phút.
+Benchmark chạy bốn chiến lược trên cùng cấu hình cho từng seed; mỗi chiến lược nhận cùng chuỗi nhu cầu và seed khởi tạo tài xế tương ứng. Hungarian và Hungarian Pooling chỉ dispatch tại ranh giới cửa sổ gom lô; Greedy và Greedy Pooling vẫn dispatch theo tick. Giao diện mặc định 20 phút mô phỏng mỗi chiến lược, 10 lượt và 5 phút warm-up; có thể chọn 5–120 phút, 1–30 lượt và warm-up ngắn hơn thời lượng.
 
-**20 phút hợp lý cho demo/smoke test, chưa đủ để kết luận chiến lược nào tốt hơn.** Benchmark giao diện hiện là một lần chạy với seed 42. Số liệu cũ từng hiển thị trong bảng dưới dạng kết quả cố định là dữ liệu fallback mẫu, không phải bằng chứng thực nghiệm đã xác minh; không dùng để trích dẫn hoặc kết luận.
+**20 phút hợp lý cho demo/smoke test, chưa đủ để kết luận chiến lược nào tốt hơn.** Với nhiều lượt, bảng báo cáo trung bình ± độ lệch chuẩn mẫu cho các KPI; chỉ số chờ đón tính trên các chuyến đã được đón (kể cả chuyến đang chạy), còn chuyến chưa hoàn tất được báo riêng. Warm-up loại các yêu cầu phát sinh trước mốc đo khỏi KPI theo cohort; mức sử dụng tài xế và quãng đường chỉ tính phần thời gian sau warm-up.
 
-Để báo cáo, nên giữ nguyên số tài xế, λ, mạng đường, thời lượng và bộ seed cho cả bốn chiến lược; chạy nhiều seed (ví dụ 20–30 lần), bỏ khoảng warm-up giống nhau, rồi báo cáo số trung bình và độ lệch chuẩn/khoảng tin cậy. Ghi rõ định nghĩa thời gian chờ (KPI tính trên các yêu cầu đã được đón, kể cả chuyến đang chạy), cách tính hủy và mức dùng xe. Lưu cấu hình, seed và kết quả thô để có thể lặp lại thực nghiệm.
+Để theo dõi, nên giữ nguyên số tài xế, λ, profile nhu cầu, mạng đường, thời lượng, cửa sổ gom lô và bộ seed cho cả bốn chiến lược; chạy nhiều seed (ví dụ 20–30 lần), dùng cùng khoảng warm-up, rồi báo cáo trung bình và độ lệch chuẩn/khoảng tin cậy. Ghi cấu hình và seed range mà giao diện trả về; diễn giải các profile không gian/thời gian là giả định tổng hợp, không phải quan sát thực tế.
 
 ---
 
@@ -135,7 +136,7 @@ Benchmark chạy bốn chiến lược trên cùng cấu hình và seed để t�
    - Bản đồ số Hà Nội với xe di chuyển theo thời gian thực dọc theo các tuyến phố.
    - Chuyển đổi linh hoạt giữa 4 chiến lược ghép chuyến.
    - Tùy chỉnh số lượng tài xế (3 - 30 xe), cường độ Poisson $\lambda$, và thanh trượt tốc độ (1x - 10x).
-   - Nút **"So sánh chiến lược"** để chạy một lượt benchmark thực trên máy chủ; khi offline ứng dụng không giả lập số liệu kết quả.
+   - Nút **"So sánh chiến lược"** để cấu hình thời lượng, số lượt, warm-up, seed, giờ bắt đầu, profile nhu cầu và cửa sổ gom lô; benchmark chạy trên máy chủ, khi offline ứng dụng không giả lập số liệu kết quả.
 
 ### Cách 2: Chạy Dòng lệnh (CLI)
 Chạy so sánh đồng thời cả 4 chiến lược:
