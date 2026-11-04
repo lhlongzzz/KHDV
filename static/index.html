@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hệ thống Điều phối & Ghép Chuyến Gọi Xe Hà Nội – Grab Simulator</title>
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
 <!-- Leaflet CSS & JS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -18,23 +22,23 @@
    ============================================= */
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
-  --grab-green: #00B14F;
-  --grab-green-glow: rgba(0, 177, 79, 0.35);
-  --grab-green-dark: #00873C;
-  --grab-green-light: #00E667;
-  --bg-main: #0B0F17;
-  --bg-card: #141A24;
-  --bg-card-sub: #1B2332;
-  --border: #232C3D;
-  --border-light: #334057;
-  --text-primary: #F0F4F8;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --yellow: #F59E0B;
-  --red: #EF4444;
-  --blue: #3B82F6;
-  --purple: #A855F7;
-  --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  --grab-green: #007f3b;
+  --grab-green-glow: transparent;
+  --grab-green-dark: #006b33;
+  --grab-green-light: #008b42;
+  --bg-main: #171719;
+  --bg-card: #131217;
+  --bg-card-sub: #212023;
+  --border: #29282c;
+  --border-light: #3a393e;
+  --text-primary: #f2f2f3;
+  --text-secondary: #b7b7bb;
+  --text-muted: #929196;
+  --yellow: #d9a441;
+  --red: #e5566f;
+  --blue: #70a9ec;
+  --purple: #929196;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 html, body {
   height: 100%;
@@ -191,7 +195,7 @@ html, body {
   opacity: 0.9;
 }
 #btnBenchmark {
-  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+  background: var(--grab-green);
   color: #fff;
 }
 #btnBenchmark:hover {
@@ -348,7 +352,7 @@ html, body {
 }
 .util-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--grab-green), #00E667);
+  background: var(--grab-green);
   border-radius: 4px;
   width: 0%;
   transition: width 0.4s ease;
@@ -619,7 +623,7 @@ html, body {
 }
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #6366F1, var(--grab-green));
+  background: var(--grab-green);
   width: 0%;
   transition: width 0.3s;
 }
@@ -630,6 +634,803 @@ html, body {
   50% { transform: scale(1.15); opacity: 1; }
   100% { transform: scale(0.95); opacity: 0.8; }
 }
+
+/* Operations console refresh */
+:root {
+  --grab-green: #007f3b;
+  --grab-green-glow: transparent;
+  --grab-green-dark: #006b33;
+  --grab-green-light: #008b42;
+  --bg-main: #171719;
+  --bg-card: #131217;
+  --bg-card-sub: #212023;
+  --border: #29282c;
+  --border-light: #3a393e;
+  --text-primary: #f2f2f3;
+  --text-secondary: #b7b7bb;
+  --text-muted: #929196;
+  --yellow: #d9a441;
+  --red: #e5566f;
+  --blue: #70a9ec;
+  --purple: #929196;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+html, body {
+  font-family: "Public Sans", Inter, system-ui, sans-serif;
+}
+
+button, input {
+  font: inherit;
+}
+
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--grab-green);
+  outline-offset: 3px;
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#topbar {
+  position: relative;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 12px 20px;
+  background: #131217;
+  border-bottom: 1px solid #29282c;
+  box-shadow: none;
+}
+
+.brand {
+  order: 0;
+  min-width: 250px;
+  margin-right: auto;
+  gap: 12px;
+}
+
+.brand-badge {
+  min-width: 42px;
+  padding: 8px;
+  border-radius: 6px;
+  box-shadow: none;
+  text-align: center;
+  font-size: 12px;
+}
+
+.brand-title {
+  font-size: 15px;
+}
+
+.brand-title span {
+  color: #9ce1ba;
+}
+
+.brand-subtitle {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.topbar-right {
+  order: 0;
+  gap: 10px;
+  margin-left: 0;
+}
+
+#topbar::before {
+  content: "";
+  flex-basis: 100%;
+  order: 1;
+  height: 0;
+}
+
+.divider {
+  display: none;
+}
+
+.strategy-container {
+  order: 2;
+  gap: 0;
+  padding: 0;
+  overflow-x: auto;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  scrollbar-width: none;
+}
+
+.strategy-container::-webkit-scrollbar {
+  display: none;
+}
+
+.strat-btn {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 0;
+  border-bottom: 1px solid transparent;
+  font-size: 12px;
+}
+
+.strat-btn.active {
+  background: transparent;
+  color: #fff;
+  border-bottom-color: var(--grab-green);
+  box-shadow: none;
+}
+
+.strat-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.param-box {
+  order: 3;
+  min-height: 36px;
+  padding: 4px 8px;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.param-box label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.param-box input {
+  width: 52px;
+  border: 0;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-ctrl {
+  order: 4;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+#btnStart, #btnStop {
+  background: var(--grab-green);
+  box-shadow: none;
+}
+
+#btnStart:hover, #btnStop:hover {
+  background: var(--grab-green-light);
+}
+
+#btnBenchmark {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+}
+
+#btnBenchmark:hover {
+  background: var(--bg-card-sub);
+  filter: none;
+}
+
+.sim-clock {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--bg-card-sub);
+  color: var(--text-primary);
+  font-family: "Public Sans", sans-serif;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mode-badge {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--bg-card-sub);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.mode-badge.connected {
+  color: #8ddbb1;
+}
+
+#content {
+  min-height: 0;
+}
+
+#sidebar {
+  width: 368px;
+  background: #131217;
+  border-right: 1px solid var(--border);
+}
+
+.strategy-banner {
+  padding: 12px 18px;
+  background: #1b1a1f;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.strategy-banner strong {
+  color: #8ddbb1;
+}
+
+.side-scroll {
+  gap: 18px;
+  padding: 18px;
+  scrollbar-color: #4a494e transparent;
+}
+
+.side-scroll [style*="font-size:10px"] {
+  font-size: 12px !important;
+}
+
+.side-scroll [style*="font-size:11px"] {
+  font-size: 12px !important;
+}
+
+.card-title {
+  margin-bottom: 9px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.kpi-grid {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #171719;
+}
+
+.kpi-item {
+  min-width: 0;
+  gap: 5px;
+  padding: 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.kpi-item:nth-child(odd) {
+  border-right: 1px solid var(--border);
+}
+
+.kpi-item:nth-child(n + 3) {
+  border-top: 1px solid var(--border);
+}
+
+.kpi-item:hover {
+  border-color: var(--border);
+}
+
+.kpi-lbl {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.kpi-val {
+  font-size: 23px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-sub {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.kpi-val.green, .kpi-val.blue {
+  color: var(--text-primary);
+}
+
+.util-card {
+  padding: 12px 14px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.util-bar-track {
+  height: 5px;
+  background: #303034;
+  border-radius: 0;
+}
+
+.util-bar-fill {
+  background: var(--grab-green);
+  border-radius: 0;
+}
+
+.fleet-box {
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.fleet-item {
+  padding: 9px 5px;
+  background: transparent;
+  border-radius: 0;
+}
+
+.fleet-item + .fleet-item {
+  border-left: 1px solid var(--border);
+}
+
+.fleet-val {
+  font-size: 18px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.fleet-lbl {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.chart-box {
+  height: 192px;
+  padding: 10px;
+  background: #171719;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.feed-box {
+  max-height: 190px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.feed-row {
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.feed-time {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+#mapContainer {
+  min-width: 0;
+  background: #171719;
+}
+
+.map-badge-panel {
+  top: 18px;
+  left: 20px;
+  display: block;
+  min-width: 250px;
+  padding: 12px 14px;
+  background: #171719;
+  border: 1px solid #343338;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.map-badge-panel h1 {
+  margin: 0 0 5px;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.map-badge-text {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.map-legend {
+  top: 18px;
+  right: 18px;
+  min-width: 190px;
+  padding: 12px 14px;
+  background: #171719;
+  border: 1px solid #343338;
+  border-radius: 6px;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.legend-item {
+  min-height: 20px;
+  color: #d0d0d3;
+  font-size: 13px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.speed-bar {
+  bottom: 20px;
+  gap: 12px;
+  padding: 9px 14px;
+  background: #171719;
+  border: 1px solid #343338;
+  border-radius: 6px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.speed-bar label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.speed-val {
+  color: #8ddbb1;
+  font-variant-numeric: tabular-nums;
+}
+
+#benchmarkModal {
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.modal-box {
+  width: min(100%, 980px);
+  padding: 22px;
+  background: #171719;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.modal-close {
+  min-width: 40px;
+  min-height: 40px;
+  color: var(--text-secondary);
+}
+
+.progress-banner {
+  padding: 14px;
+  background: var(--bg-card-sub);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.progress-bar-wrap {
+  background: #38373c;
+  border-radius: 0;
+}
+
+.progress-bar-fill {
+  background: var(--grab-green);
+}
+
+.bench-table {
+  font-size: 13px;
+}
+
+.bench-table th {
+  padding: 10px 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.bench-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.bench-table th:not(:first-child), .bench-table td:not(:first-child) {
+  text-align: right;
+}
+
+.strat-name, .best-metric {
+  color: #8ddbb1;
+}
+
+.worst-metric {
+  color: var(--negative, #e5566f);
+}
+
+.leaflet-control-layers {
+  border: 1px solid #343338 !important;
+  border-radius: 6px !important;
+}
+
+.leaflet-control-layers, .leaflet-control-zoom a {
+  background: #171719 !important;
+  color: #f2f2f3 !important;
+}
+
+.leaflet-control-zoom a {
+  border-color: #343338 !important;
+  font-family: "Public Sans", Inter, system-ui, sans-serif !important;
+}
+
+.leaflet-control-attribution {
+  margin: 0 16px 8px 0 !important;
+  background: rgba(23, 23, 25, 0.88) !important;
+  color: #d0d0d3 !important;
+  font-family: "Public Sans", Inter, system-ui, sans-serif !important;
+  font-size: 11px !important;
+}
+
+.leaflet-control-attribution a {
+  color: #c4c4c7 !important;
+}
+
+#mobilePanelToggle, #sidebarScrim {
+  display: none;
+}
+
+#sidebarClose {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  #topbar {
+    gap: 8px 12px;
+  }
+
+  .brand {
+    min-width: 220px;
+  }
+
+  .strategy-container {
+    flex-basis: 100%;
+    order: 2;
+  }
+
+  #sidebar {
+    width: 340px;
+  }
+}
+
+@media (max-width: 760px) {
+  #topbar {
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .brand {
+    min-width: 0;
+    gap: 9px;
+  }
+
+  .brand-badge {
+    min-width: 38px;
+    padding: 7px 5px;
+    font-size: 11px;
+  }
+
+  .brand-title {
+    font-size: 14px;
+  }
+
+  .brand-subtitle {
+    font-size: 11px;
+  }
+
+  .topbar-right {
+    gap: 0;
+  }
+
+  .mode-badge {
+    display: none;
+  }
+
+  .sim-clock {
+    font-size: 12px;
+  }
+
+  #mobilePanelToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    order: 1;
+    min-height: 38px;
+    padding: 7px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .strategy-container {
+    flex-basis: calc(100% + 28px);
+    width: calc(100% + 28px);
+    margin: 0 -14px;
+    padding: 0 14px;
+    order: 2;
+  }
+
+  .strat-btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 8px 11px;
+  }
+
+  .param-box {
+    flex: 1 1 auto;
+    justify-content: space-between;
+    min-width: 120px;
+    min-height: 40px;
+    order: 3;
+  }
+
+  .btn-ctrl {
+    flex: 1 1 42%;
+    justify-content: center;
+    min-height: 42px;
+    order: 4;
+    font-size: 12px;
+  }
+
+  #content {
+    position: relative;
+    overflow: hidden;
+  }
+
+  #mapContainer {
+    width: 100%;
+  }
+
+  #sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1200;
+    width: min(390px, calc(100vw - 44px));
+    padding-top: 0;
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+    box-shadow: 14px 0 32px rgba(0, 0, 0, 0.32);
+  }
+
+  #sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  #sidebarClose {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-height: 48px;
+    padding: 8px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: #131217;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  #sidebarScrim.visible {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: block;
+    border: 0;
+    background: rgba(0, 0, 0, 0.48);
+  }
+
+  .side-scroll {
+    padding: 16px;
+  }
+
+  .map-badge-panel {
+    top: 14px;
+    left: 16px;
+    min-width: 0;
+  }
+
+  .map-badge-panel h1 {
+    font-size: 20px;
+  }
+
+  .map-badge-text {
+    font-size: 13px;
+  }
+
+  .map-legend {
+    top: 92px;
+    right: 10px;
+    min-width: 0;
+    max-width: 174px;
+    padding: 9px 10px;
+    font-size: 11px;
+  }
+
+  .legend-item {
+    gap: 6px;
+    min-height: 24px;
+    font-size: 13px;
+  }
+
+  .speed-bar {
+    bottom: 18px;
+    left: 14px;
+    transform: none;
+  }
+
+  .speed-bar input[type=range] {
+    width: min(28vw, 110px);
+  }
+
+  .modal-box {
+    padding: 16px;
+  }
+
+  .bench-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 390px) {
+  .brand-subtitle {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .brand-title {
+    font-size: 13px;
+  }
+
+  .sim-clock {
+    padding: 5px 7px;
+  }
+
+  .map-legend {
+    max-width: 154px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -639,7 +1440,7 @@ html, body {
   <!-- TOPBAR -->
   <header id="topbar">
     <div class="brand">
-      <div class="brand-badge">GRAB SIM</div>
+      <div class="brand-badge">GRAB<br>SIM</div>
       <div>
         <div class="brand-title">Điều phối Gọi xe <span>Hà Nội</span></div>
         <div class="brand-subtitle">Khoa học Dịch vụ – Hoàn Kiếm, HN</div>
@@ -650,10 +1451,10 @@ html, body {
 
     <!-- Strategy Selection -->
     <div class="strategy-container">
-      <button class="strat-btn active" data-strategy="greedy">S1: Greedy</button>
-      <button class="strat-btn" data-strategy="hungarian">S2: Hungarian</button>
-      <button class="strat-btn" data-strategy="pooling">S3: Greedy+Pool</button>
-      <button class="strat-btn" data-strategy="hungarian_pooling">S4: HU+Pool</button>
+      <button class="strat-btn active" data-strategy="greedy">Greedy</button>
+      <button class="strat-btn" data-strategy="hungarian">Hungarian</button>
+      <button class="strat-btn" data-strategy="pooling">Greedy + Pool</button>
+      <button class="strat-btn" data-strategy="hungarian_pooling">Hungarian + Pool</button>
     </div>
 
     <div class="divider"></div>
@@ -672,11 +1473,12 @@ html, body {
     <div class="divider"></div>
 
     <!-- Controls -->
-    <button class="btn-ctrl" id="btnStart">▶ Khởi chạy</button>
-    <button class="btn-ctrl" id="btnStop">⏹ Dừng</button>
-    <button class="btn-ctrl" id="btnBenchmark">📊 So sánh 4 chiến lược</button>
+    <button class="btn-ctrl" id="btnStart">Bắt đầu mô phỏng</button>
+    <button class="btn-ctrl" id="btnStop">Dừng mô phỏng</button>
+    <button class="btn-ctrl" id="btnBenchmark">So sánh chiến lược</button>
 
     <div class="topbar-right">
+      <button id="mobilePanelToggle" type="button" aria-controls="sidebar" aria-expanded="false">Số liệu</button>
       <div class="sim-clock" id="clockDisplay">T = 00:00</div>
       <div class="mode-badge" id="backendBadge">Đang kết nối...</div>
     </div>
@@ -687,6 +1489,7 @@ html, body {
 
     <!-- SIDEBAR -->
     <aside id="sidebar">
+      <button id="sidebarClose" type="button">Đóng bảng số liệu</button>
       <div class="strategy-banner" id="strategyDesc">
         <strong>S1: Greedy (Tham lam gần nhất):</strong> Ghép lần lượt từng yêu cầu với tài xế rảnh gần nhất. Tốc độ cao nhưng dễ rơi vào tối ưu cục bộ.
       </div>
@@ -797,41 +1600,42 @@ html, body {
 
       <!-- Map Overlay Badge -->
       <div class="map-badge-panel">
-        <span style="font-size:16px;">📍</span>
-        <span class="map-badge-text">Khu vực: Hoàn Kiếm, Hà Nội (OpenStreetMap)</span>
+        <h1>Điều phối Hà Nội</h1>
+        <span class="map-badge-text">Hoàn Kiếm · OpenStreetMap</span>
       </div>
 
       <!-- Legend -->
       <div class="map-legend">
-        <div style="font-weight:700;color:var(--text-primary);margin-bottom:2px;">CHÚ THÍCH</div>
+        <div style="font-weight:600;color:var(--text-primary);margin-bottom:4px;">Trạng thái trên bản đồ</div>
         <div class="legend-item"><div class="legend-dot" style="background:#22C55E;"></div>Tài xế rảnh</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--yellow);"></div>Tài xế đang đi đón</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--blue);"></div>Tài xế đang chở khách</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--red);"></div>Điểm đón khách (📍)</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#A855F7;"></div>Điểm trả khách (🏁)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red);"></div>Điểm đón khách</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#929196;"></div>Điểm trả khách</div>
       </div>
 
       <!-- Speed Bar -->
       <div class="speed-bar">
-        <label>TỐC ĐỘ:</label>
+        <label for="speedSlider">Tốc độ</label>
         <input type="range" id="speedSlider" min="1" max="10" step="1" value="2">
         <span class="speed-val" id="speedVal">2×</span>
       </div>
     </main>
 
   </div>
+  <button id="sidebarScrim" type="button" aria-label="Đóng bảng số liệu"></button>
 </div>
 
 <!-- BENCHMARK MODAL -->
 <div id="benchmarkModal">
   <div class="modal-box">
     <div class="modal-header">
-      <h2>📊 Đánh giá & So sánh Định lượng 4 Chiến lược Ghép Chuyến</h2>
-      <button class="modal-close" id="btnCloseModal">✕</button>
+      <h2>So sánh bốn chiến lược ghép chuyến</h2>
+      <button class="modal-close" id="btnCloseModal" aria-label="Đóng">Đóng</button>
     </div>
 
     <div class="progress-banner" id="benchProgressBox">
-      <div id="benchStatusText">Sẵn sàng chạy so sánh 4 chiến lược trên cùng một kịch bản nhu cầu thực tế...</div>
+      <div id="benchStatusText">So sánh bốn chiến lược trên cùng một kịch bản nhu cầu.</div>
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill" id="benchProgressBar"></div>
       </div>
@@ -839,7 +1643,7 @@ html, body {
 
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
       <button class="btn-ctrl" id="btnRunBenchAction" style="background:var(--grab-green);color:#fff;">
-        ⚡ Bắt đầu Benchmark (15 phút mô phỏng)
+        Bắt đầu so sánh (20 phút mô phỏng)
       </button>
     </div>
 
@@ -875,50 +1679,36 @@ const STRATEGY_DESCRIPTIONS = {
 // =============================================
 // MAP INITIALIZATION
 // =============================================
-let darkLayer, osmLayer;
+let osmLayer;
 
 function initMap() {
   map = L.map('map', {
     center: HANOI_COORDS,
     zoom: 14,
     zoomControl: false,
-    attributionControl: false
+    attributionControl: true
   });
 
-  // Base layers: Hoàn toàn MIỄN PHÍ, không cần bất kỳ API key nào
   osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
   });
-
-  darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19
-  });
-
-  // Mặc định nạp Dark layer, có nút chuyển đổi trực tiếp sang OpenStreetMap
-  darkLayer.addTo(map);
-
-  const baseLayers = {
-    "🌙 Nền tối (Grab Operations)": darkLayer,
-    "☀️ Bản đồ chuẩn (OpenStreetMap)": osmLayer
-  };
-  L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
+  osmLayer.addTo(map);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 }
 
 // Custom vehicle icons
 function createCarIcon(status) {
   let color = "#22C55E";
-  let label = "IDLE";
-  if (status === "EN_ROUTE_PICKUP") { color = "#F59E0B"; label = "PICKUP"; }
-  if (status === "OCCUPIED") { color = "#3B82F6"; label = "OCCUPIED"; }
+  if (status === "EN_ROUTE_PICKUP") color = "#F59E0B";
+  if (status === "OCCUPIED") color = "#3B82F6";
 
   const html = `
     <div style="
       width: 26px; height: 26px; border-radius: 50%;
       background: ${color}; border: 2px solid #FFFFFF;
-      box-shadow: 0 0 10px ${color};
       display: flex; align-items: center; justify-content: center;
-      font-size: 13px; color: white;">🚗</div>
+      font-size: 11px; font-weight: 700; color: white;">D</div>
   `;
   return L.divIcon({
     html: html,
@@ -930,7 +1720,7 @@ function createCarIcon(status) {
 
 function createPickupIcon() {
   return L.divIcon({
-    html: `<div style="font-size: 18px; filter: drop-shadow(0 0 4px #EF4444); animation: pulseMarker 1.5s infinite;">📍</div>`,
+    html: `<div style="width:12px;height:12px;border:2px solid #fff;border-radius:50%;background:#EF4444;"></div>`,
     className: '',
     iconSize: [20, 20],
     iconAnchor: [10, 18]
@@ -948,6 +1738,7 @@ const chartHistory = {
 };
 
 function initChart() {
+  Chart.defaults.font.family = '"Public Sans", Inter, system-ui, sans-serif';
   const ctx = document.getElementById('liveChart').getContext('2d');
   liveChart = new Chart(ctx, {
     type: 'line',
@@ -955,20 +1746,22 @@ function initChart() {
       labels: [],
       datasets: [
         {
-          label: 'Đón TB (s)',
+          label: 'Đón TB (giây)',
           data: [],
           borderColor: '#00B14F',
-          backgroundColor: 'rgba(0, 177, 79, 0.1)',
-          fill: true,
-          tension: 0.35,
+          backgroundColor: 'transparent',
+          pointRadius: 0,
+          borderWidth: 2,
+          tension: 0.2,
           yAxisID: 'y'
         },
         {
           label: 'Hủy (%)',
           data: [],
-          borderColor: '#EF4444',
-          borderDash: [4, 4],
-          tension: 0.35,
+          borderColor: '#E5566F',
+          pointRadius: 0,
+          borderWidth: 2,
+          tension: 0.2,
           yAxisID: 'y1'
         }
       ]
@@ -978,19 +1771,24 @@ function initChart() {
       maintainAspectRatio: false,
       animation: false,
       plugins: {
-        legend: { labels: { color: '#94A3B8', font: { size: 10 } } }
+        legend: { labels: { color: '#B7B7BB', font: { size: 11 }, usePointStyle: true, boxWidth: 8 } }
       },
       scales: {
-        x: { display: false },
+        x: {
+          grid: { display: false },
+          ticks: { color: '#929196', font: { size: 11 }, maxTicksLimit: 4, maxRotation: 0 }
+        },
         y: {
           position: 'left',
-          grid: { color: '#1B2332' },
-          ticks: { color: '#64748B', font: { size: 9 } }
+          grid: { color: '#29282C' },
+          ticks: { color: '#B7B7BB', font: { size: 11 } },
+          title: { display: true, text: 'Giây', color: '#B7B7BB', font: { size: 11 } }
         },
         y1: {
           position: 'right',
           grid: { display: false },
-          ticks: { color: '#EF4444', font: { size: 9 } },
+          ticks: { color: '#B7B7BB', font: { size: 11 } },
+          title: { display: true, text: '% hủy', color: '#B7B7BB', font: { size: 11 } },
           min: 0,
           max: 100
         }
@@ -1056,16 +1854,16 @@ function handleServerMessage(msg) {
   if (msg.type === "tick") {
     renderTickData(msg);
   } else if (msg.type === "sim_started") {
-    addFeedItem(`🚀 Bắt đầu mô phỏng: <strong>${msg.strategy_name}</strong>`);
+    addFeedItem(`Bắt đầu mô phỏng: <strong>${msg.strategy_name}</strong>`);
   } else if (msg.type === "event_new_request") {
-    addFeedItem(`📍 Yêu cầu mới <strong>${msg.id}</strong> vừa phát sinh`);
+    addFeedItem(`Yêu cầu mới <strong>${msg.id}</strong> vừa phát sinh`);
   } else if (msg.type === "event_trip_completed") {
-    addFeedItem(`✅ Chuyến <strong>${msg.id}</strong> đã hoàn thành (Tài xế ${msg.driver_id})`);
+    addFeedItem(`Chuyến <strong>${msg.id}</strong> đã hoàn thành (Tài xế ${msg.driver_id})`);
   } else if (msg.type === "event_trip_cancelled") {
-    addFeedItem(`❌ Chuyến <strong>${msg.id}</strong> bị hủy do chờ quá lâu`);
+    addFeedItem(`Chuyến <strong>${msg.id}</strong> bị hủy do chờ quá lâu`);
   } else if (msg.type === "sim_finished") {
     setRunningState(false);
-    addFeedItem(`🏁 Mô phỏng kết thúc!`);
+    addFeedItem(`Mô phỏng kết thúc.`);
   }
 }
 
@@ -1094,27 +1892,23 @@ function renderTickData(data) {
   // Update Drivers on Map & Popups
   data.drivers.forEach(d => {
     const speed = (d.speed_kmh !== undefined) ? d.speed_kmh : (d.status === "IDLE" ? 0 : 30);
-    const speedBadge = speed > 0
-      ? `<span style="color:#2563EB; font-weight:bold;">⚡ ${speed} km/h</span>`
-      : `<span style="color:#64748B;">🅿️ 0 km/h (Dừng đỗ)</span>`;
-
     const statusLabels = {
       "IDLE": "<span style='color:#22C55E;font-weight:bold;'>Đang rảnh</span>",
       "EN_ROUTE_PICKUP": "<span style='color:#F59E0B;font-weight:bold;'>Đang đi đón khách</span>",
       "OCCUPIED": "<span style='color:#3B82F6;font-weight:bold;'>Đang chở khách</span>"
     };
 
-    const tooltipContent = `<b>${d.id}</b> • ⚡ <b>${speed} km/h</b><br>[${d.status}]`;
+    const tooltipContent = `<b>${d.id}</b> • <b>${speed} km/h</b><br>[${d.status}]`;
 
     const popupContent = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:12px;color:#1F2937;line-height:1.6;min-width:210px;">
         <div style="font-size:14px;font-weight:bold;color:#00B14F;border-bottom:1px solid #E5E7EB;padding-bottom:4px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
-          <span>🚗 Tài xế: ${d.id}</span>
+          <span>Tài xế: ${d.id}</span>
           <span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#E5E7EB;color:#374151;">${d.status}</span>
         </div>
         <div><strong>Trạng thái:</strong> ${statusLabels[d.status] || d.status}</div>
         <div style="margin:6px 0;background:#EFF6FF;border-left:3px solid #3B82F6;padding:5px 8px;border-radius:3px;">
-          <strong style="color:#1E40AF;">⚡ Vận tốc di chuyển:</strong>
+          <strong style="color:#1E40AF;">Vận tốc di chuyển:</strong>
           <span style="font-size:14px;font-weight:bold;color:#2563EB;margin-left:4px;">${speed} km/h</span>
         </div>
         <div><strong>Khách trên xe:</strong> ${d.passengers && d.passengers.length ? d.passengers.join(', ') : 'Không có'}</div>
@@ -1144,17 +1938,16 @@ function renderTickData(data) {
       const speed = (d.speed_kmh !== undefined) ? d.speed_kmh : (d.status === "IDLE" ? 0 : 30);
       const isMoving = speed > 0;
       const speedColor = isMoving ? "#38BDF8" : "#64748B";
-      const statusIcon = d.status === "IDLE" ? "🅿️" : (d.status === "EN_ROUTE_PICKUP" ? "🚕" : "🚗");
       const statusLabel = d.status === "IDLE" ? "Rảnh" : (d.status === "EN_ROUTE_PICKUP" ? "Đi đón" : "Chở khách");
       return `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg-card-sub);border-radius:6px;font-size:11px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg-card-sub);border-radius:6px;font-size:12px;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span>${statusIcon}</span>
+            <span aria-hidden="true" style="width:7px;height:7px;border-radius:50%;background:${d.status === "IDLE" ? "#22C55E" : d.status === "EN_ROUTE_PICKUP" ? "#F59E0B" : "#3B82F6"};"></span>
             <strong style="color:var(--text-primary);">${d.id}</strong>
             <span style="color:var(--text-muted);font-size:10px;">(${statusLabel})</span>
           </div>
           <div style="font-weight:700;color:${speedColor};font-variant-numeric:tabular-nums;background:rgba(0,0,0,0.25);padding:2px 6px;border-radius:4px;">
-            ⚡ ${speed} km/h
+            ${speed} km/h
           </div>
         </div>
       `;
@@ -1190,6 +1983,25 @@ function addFeedItem(text) {
   feed.insertBefore(row, feed.firstChild);
   if (feed.children.length > 30) feed.removeChild(feed.lastChild);
 }
+
+function setMobilePanelOpen(open) {
+  const sidebar = document.getElementById('sidebar');
+  const scrim = document.getElementById('sidebarScrim');
+  const toggle = document.getElementById('mobilePanelToggle');
+  sidebar.classList.toggle('mobile-open', open);
+  scrim.classList.toggle('visible', open);
+  toggle.setAttribute('aria-expanded', String(open));
+}
+
+document.getElementById('mobilePanelToggle').addEventListener('click', () => {
+  const isOpen = document.getElementById('sidebar').classList.contains('mobile-open');
+  setMobilePanelOpen(!isOpen);
+});
+document.getElementById('sidebarClose').addEventListener('click', () => setMobilePanelOpen(false));
+document.getElementById('sidebarScrim').addEventListener('click', () => setMobilePanelOpen(false));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') setMobilePanelOpen(false);
+});
 
 // =============================================
 // SIMULATION CONTROLS
@@ -1337,7 +2149,7 @@ function renderBenchmarkTable(results) {
       <tbody>${rows}</tbody>
     </table>
     <div style="margin-top:14px;padding:10px 14px;background:var(--bg-main);border-radius:8px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
-      💡 <strong>Nhận xét từ kết quả:</strong><br>
+      <strong>Nhận xét từ kết quả:</strong><br>
       • <strong>Hungarian (S2)</strong> giảm thời gian đón khách và quãng đường chạy rỗng so với <strong>Greedy (S1)</strong> nhờ giải thuật gán tối ưu toàn cục.<br>
       • Các chiến lược ghép chuyến <strong>Pooling (S3, S4)</strong> nâng cao hiệu suất sử dụng đội xe (Utilization), giảm số lượng xe cần thiết để phục vụ cùng lưu lượng khách.
     </div>
@@ -1359,7 +2171,7 @@ function startClientFallbackSim(numDrivers, arrivalRate) {
     simTime += speedMult;
     if (Math.random() < arrivalRate * speedMult * 10) {
       totalReq++;
-      addFeedItem(`📍 Yêu cầu mới R_${String(totalReq).padStart(4,'0')}`);
+      addFeedItem(`Yêu cầu mới R_${String(totalReq).padStart(4,'0')}`);
       if (Math.random() < 0.85) {
         completedReq++;
         waitSum += (80 + Math.random() * 60);
