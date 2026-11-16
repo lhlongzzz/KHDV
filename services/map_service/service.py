@@ -66,6 +66,45 @@ class MapService:
         """Lấy tọa độ (lat, lon) của giao lộ."""
         return self.road_map.get_node_latlon(node_id)
 
+    def find_nearest_node(self, lat: float, lon: float) -> ServiceResult[int]:
+        """Tìm nút giao lộ OSM gần nhất sử dụng đồ thị OpenStreetMap/OSMnx."""
+        if not self.is_ready:
+            return ServiceResult.fail("Bản đồ chưa sẵn sàng")
+        try:
+            node_id = self.road_map.get_nearest_node(lat, lon)
+            return ServiceResult.ok(node_id)
+        except Exception as e:
+            return ServiceResult.fail(f"Lỗi tìm kiếm giao lộ: {e}")
+
+    def get_landmarks(self) -> ServiceResult[List[dict]]:
+        """Danh sách các địa danh trọng điểm tại Quận Hoàn Kiếm, Hà Nội."""
+        if not self.is_ready:
+            return ServiceResult.fail("Bản đồ chưa sẵn sàng")
+        raw_landmarks = [
+            {"name": "Hồ Hoàn Kiếm (Đền Ngọc Sơn)", "address": "Phố Đinh Tiên Hoàng, P. Hàng Bạc", "lat": 21.0307, "lon": 105.8524},
+            {"name": "Nhà hát Lớn Hà Nội", "address": "Số 1 Tràng Tiền, P. Phan Chu Trinh", "lat": 21.0243, "lon": 105.8576},
+            {"name": "Chợ Đồng Xuân", "address": "Phố Đồng Xuân, P. Đồng Xuân", "lat": 21.0381, "lon": 105.8497},
+            {"name": "Nhà thờ Lớn Hà Nội", "address": "40 Nhà Chung, P. Hàng Trống", "lat": 21.0288, "lon": 105.8495},
+            {"name": "Bệnh viện Hữu nghị Việt Đức", "address": "40 Tràng Thi, P. Hàng Bông", "lat": 21.0275, "lon": 105.8475},
+            {"name": "Tràng Tiền Plaza", "address": "24 Hai Bà Trưng, P. Tràng Tiền", "lat": 21.0258, "lon": 105.8542},
+            {"name": "Phố ẩm thực Tạ Hiện", "address": "Phố Tạ Hiện, P. Hàng Buồm", "lat": 21.0350, "lon": 105.8522},
+            {"name": "Ga Hà Nội", "address": "120 Lê Duẩn, P. Cửa Nam", "lat": 21.0245, "lon": 105.8415},
+            {"name": "Cầu Long Biên (Đầu cầu Hoàn Kiếm)", "address": "Phố Trần Nhật Duật, P. Đồng Xuân", "lat": 21.0425, "lon": 105.8520},
+            {"name": "Bưu điện Hà Nội", "address": "75 Đinh Tiên Hoàng, P. Tràng Tiền", "lat": 21.0268, "lon": 105.8535},
+        ]
+        result = []
+        for lm in raw_landmarks:
+            node = self.road_map.get_nearest_node(lm["lat"], lm["lon"])
+            nlat, nlon = self.road_map.get_node_latlon(node)
+            result.append({
+                "name": lm["name"],
+                "address": lm["address"],
+                "node_id": node,
+                "lat": round(nlat, 6),
+                "lon": round(nlon, 6),
+            })
+        return ServiceResult.ok(result)
+
     def calculate_route(self, origin_node: int, destination_node: int) -> ServiceResult[RouteResponseDTO]:
         """Tính đường đi ngắn nhất giữa 2 điểm có cache tối ưu."""
         if origin_node == destination_node:

@@ -40,7 +40,9 @@ if CURRENT_DIR not in sys.path:
 from core_engine.entities import Driver, Request, DriverState
 from core_engine.map_network import RealRoadMap
 from core_engine.simulator import SimulationEngine
+from services.base import EventType, event_bus
 from services.benchmark_service import run_benchmark
+from services.booking_service.service import BookingService
 from services.map_service.service import MapService
 from services.matching_service.contracts import DispatchStrategy
 from services.simulation_service import SimulationService
@@ -61,6 +63,7 @@ STRATEGY_ALIASES = {
 # ============================================================
 road_map: Optional[RealRoadMap] = None
 map_service: Optional[MapService] = None
+booking_service: Optional[BookingService] = None
 map_nodes_cache: Optional[List[dict]] = None
 main_loop: Optional[asyncio.AbstractEventLoop] = None
 
@@ -95,7 +98,7 @@ os.makedirs(STATIC_DIR, exist_ok=True)
 # ============================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global road_map, map_service, map_nodes_cache, main_loop
+    global road_map, map_service, booking_service, map_nodes_cache, main_loop
     main_loop = asyncio.get_running_loop()
     print("\n[Server] Đang nạp bản đồ giao thông Hoàn Kiếm, Hà Nội...")
     map_service = MapService(place_name="Hoan Kiem, Hanoi, Vietnam")
@@ -109,9 +112,29 @@ async def lifespan(app: FastAPI):
             {"id": node.id, "lat": node.lat, "lon": node.lon}
             for node in nodes_result.data
         ]
-        print(f"[Server] ✓ Map Service sẵn sàng: {len(map_nodes_cache)} giao lộ.")
+        booking_service = BookingService(map_service)
+        print(f"[Server] ✓ Map Service & Booking Service sẵn sàng: {len(map_nodes_cache)} giao lộ.")
+
+        # Đăng ký đồng bộ sự kiện Booking Service tới WebSocket Client thời gian thực
+        def _on_booking_created(b):
+            send_ws_event({"type": "portal_booking_created", "booking_id": b.booking_id, "customer_name": b.customer.name})
+        def _on_booking_matched(b):
+            send_ws_event({"type": "portal_booking_matched", "booking_id": b.booking_id, "driver_id": b.driver.driver_id if b.driver else None})
+        def _on_booking_picked_up(b):
+            send_ws_event({"type": "portal_booking_picked_up", "booking_id": b.booking_id})
+        def _on_booking_completed(b):
+            send_ws_event({"type": "portal_booking_completed", "booking_id": b.booking_id})
+        def _on_booking_cancelled(b):
+            send_ws_event({"type": "portal_booking_cancelled", "booking_id": b.booking_id, "reason": b.cancel_reason})
+
+        event_bus.subscribe(EventType.REQUEST_CREATED, _on_booking_created)
+        event_bus.subscribe(EventType.REQUEST_MATCHED, _on_booking_matched)
+        event_bus.subscribe(EventType.REQUEST_PICKED_UP, _on_booking_picked_up)
+        event_bus.subscribe(EventType.REQUEST_COMPLETED, _on_booking_completed)
+        event_bus.subscribe(EventType.REQUEST_CANCELLED, _on_booking_cancelled)
     else:
         road_map = None
+        booking_service = None
         map_nodes_cache = None
         print(f"[Server] ⚠ Map Service lỗi: {map_result.error}")
     yield
@@ -414,6 +437,342 @@ async def get_index():
     })
 
 
+# ============================================================
+# CỔNG ĐẶT XE & TÀI XẾ GRAB (PASSENGER, DRIVER, MANAGEMENT)
+# ============================================================
+@app.get("/portal")
+async def get_portal_page():
+    portal_file = os.path.join(STATIC_DIR, "portal.html")
+    if os.path.exists(portal_file):
+        return FileResponse(portal_file)
+    return JSONResponse({"error": "Không tìm thấy static/portal.html"}, status_code=404)
+
+
+@app.get("/passenger")
+@app.get("/client")
+async def get_passenger_page():
+    passenger_file = os.path.join(STATIC_DIR, "passenger.html")
+    if os.path.exists(passenger_file):
+        return FileResponse(passenger_file)
+    return JSONResponse({"error": "Không tìm thấy static/passenger.html"}, status_code=404)
+
+
+@app.get("/driver")
+async def get_driver_page():
+    driver_file = os.path.join(STATIC_DIR, "driver.html")
+    if os.path.exists(driver_file):
+        return FileResponse(driver_file)
+    return JSONResponse({"error": "Không tìm thấy static/driver.html"}, status_code=404)
+
+
+@app.get("/management")
+@app.get("/admin")
+async def get_management_page():
+    mgmt_file = os.path.join(STATIC_DIR, "management.html")
+    if os.path.exists(mgmt_file):
+        return FileResponse(mgmt_file)
+    return JSONResponse({"error": "Không tìm thấy static/management.html"}, status_code=404)
+
+
+@app.get("/api/geo/landmarks")
+async def get_landmarks_api():
+    if not map_service or not map_service.is_ready:
+        return JSONResponse({"error": "Bản đồ chưa sẵn sàng"}, status_code=503)
+    res = map_service.get_landmarks()
+    if not res.success:
+        return JSONResponse({"error": res.error}, status_code=500)
+    return {"landmarks": res.data}
+
+
+@app.get("/api/geo/nearest-node")
+async def get_nearest_node_api(lat: float, lon: float):
+    if not map_service or not map_service.is_ready:
+        return JSONResponse({"error": "Bản đồ chưa sẵn sàng"}, status_code=503)
+    res = map_service.find_nearest_node(lat, lon)
+    if not res.success or res.data is None:
+        return JSONResponse({"error": res.error or "Không tìm thấy nút"}, status_code=404)
+    nlat, nlon = map_service.get_node_latlon(res.data)
+    return {
+        "node_id": res.data,
+        "lat": round(nlat, 6),
+        "lon": round(nlon, 6),
+    }
+
+
+@app.post("/api/customer/register")
+async def register_customer_api(payload: dict):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    name = payload.get("name", "").strip()
+    phone = payload.get("phone", "").strip()
+    email = payload.get("email", "").strip() or None
+    res = booking_service.register_customer(name, phone, email)
+    if not res.success or not res.data:
+        return JSONResponse({"error": res.error}, status_code=400)
+    return {
+        "status": "ok",
+        "customer": {
+            "customer_id": res.data.customer_id,
+            "name": res.data.name,
+            "phone": res.data.phone,
+            "email": res.data.email,
+        }
+    }
+
+
+@app.post("/api/driver/register")
+async def register_driver_api(payload: dict):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    name = payload.get("name", "").strip()
+    phone = payload.get("phone", "").strip()
+    vehicle_type = payload.get("vehicle_type", "grab_car")
+    vehicle_plate = payload.get("vehicle_plate", "29A-888.88").strip()
+    vehicle_model = payload.get("vehicle_model", "Toyota Vios").strip()
+    start_node = payload.get("start_node")
+    if start_node is not None:
+        try:
+            start_node = int(start_node)
+        except ValueError:
+            start_node = None
+
+    res = booking_service.register_driver(
+        name=name,
+        phone=phone,
+        vehicle_type=vehicle_type,
+        vehicle_plate=vehicle_plate,
+        vehicle_model=vehicle_model,
+        start_node=start_node,
+    )
+    if not res.success or not res.data:
+        return JSONResponse({"error": res.error}, status_code=400)
+    d = res.data
+    return {
+        "status": "ok",
+        "driver": {
+            "driver_id": d.driver_id,
+            "name": d.name,
+            "phone": d.phone,
+            "vehicle_type": d.vehicle_type,
+            "vehicle_plate": d.vehicle_plate,
+            "vehicle_model": d.vehicle_model,
+            "rating": d.rating,
+            "current_node": d.current_node,
+            "current_lat": d.current_lat,
+            "current_lon": d.current_lon,
+            "status": d.status,
+        }
+    }
+
+
+@app.get("/api/driver/{driver_id}")
+async def get_driver_api(driver_id: str):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    res = booking_service.get_driver(driver_id)
+    if not res.success or not res.data:
+        return JSONResponse({"error": res.error}, status_code=404)
+    d = res.data
+    return {
+        "driver_id": d.driver_id,
+        "name": d.name,
+        "phone": d.phone,
+        "vehicle_type": d.vehicle_type,
+        "vehicle_plate": d.vehicle_plate,
+        "vehicle_model": d.vehicle_model,
+        "rating": d.rating,
+        "current_node": d.current_node,
+        "current_lat": d.current_lat,
+        "current_lon": d.current_lon,
+        "status": d.status,
+        "total_trips": d.total_trips,
+        "total_income": d.total_income,
+    }
+
+
+@app.get("/api/driver/{driver_id}/available-trips")
+async def get_available_trips_api(driver_id: str):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    trips = booking_service.get_available_bookings_for_driver(driver_id)
+    return {"trips": trips}
+
+
+@app.post("/api/trip/estimate")
+async def estimate_trip_api(payload: dict):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    try:
+        origin_node = int(payload["origin_node"])
+        destination_node = int(payload["destination_node"])
+    except (KeyError, TypeError, ValueError):
+        return JSONResponse({"error": "origin_node và destination_node phải là số nguyên hợp lệ"}, status_code=400)
+
+    res = booking_service.estimate_booking(origin_node, destination_node)
+    if not res.success or not res.data:
+        return JSONResponse({"error": res.error}, status_code=400)
+    data = res.data
+    return {
+        "origin_node": data.origin_node,
+        "destination_node": data.destination_node,
+        "distance_meters": data.distance_meters,
+        "estimated_duration_seconds": data.estimated_duration_seconds,
+        "route_coords": data.route_coords,
+        "services": data.services,
+    }
+
+
+@app.post("/api/trip/book")
+async def book_trip_api(payload: dict):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    try:
+        customer_id = payload["customer_id"]
+        origin_node = int(payload["origin_node"])
+        destination_node = int(payload["destination_node"])
+        service_type = payload.get("service_type", "grab_car")
+        origin_address = payload.get("origin_address", "Điểm đón")
+        destination_address = payload.get("destination_address", "Điểm đến")
+    except (KeyError, TypeError, ValueError) as e:
+        return JSONResponse({"error": f"Dữ liệu đặt xe không hợp lệ: {e}"}, status_code=400)
+
+    res = booking_service.create_booking(
+        customer_id=customer_id,
+        origin_node=origin_node,
+        destination_node=destination_node,
+        service_type=service_type,
+        origin_address=origin_address,
+        destination_address=destination_address,
+    )
+    if not res.success or not res.data:
+        return JSONResponse({"error": res.error}, status_code=400)
+    b = res.data
+    return {
+        "status": "ok",
+        "booking": {
+            "booking_id": b.booking_id,
+            "customer_id": b.customer.customer_id,
+            "customer_name": b.customer.name,
+            "service_type": b.service_type,
+            "service_name": b.service_name,
+            "origin_address": b.origin_address,
+            "destination_address": b.destination_address,
+            "origin_lat": b.origin_lat,
+            "origin_lon": b.origin_lon,
+            "destination_lat": b.destination_lat,
+            "destination_lon": b.destination_lon,
+            "distance_km": round(b.distance_meters / 1000.0, 2),
+            "estimated_price_vnd": b.estimated_price_vnd,
+            "status": b.status.value,
+            "created_at_time": b.created_at_time,
+            "max_wait_time_seconds": b.max_wait_time_seconds,
+            "trip_route_coords": b.trip_route_coords,
+        }
+    }
+
+
+@app.get("/api/trip/{booking_id}")
+async def get_trip_details_api(booking_id: str):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    booking_service.check_timeouts()
+    b = booking_service.bookings.get(booking_id)
+    if not b:
+        return JSONResponse({"error": "Không tìm thấy thông tin chuyến xe"}, status_code=404)
+
+    return {
+        "booking_id": b.booking_id,
+        "customer": {
+            "customer_id": b.customer.customer_id,
+            "name": b.customer.name,
+            "phone": b.customer.phone,
+        },
+        "driver": {
+            "driver_id": b.driver.driver_id,
+            "name": b.driver.name,
+            "phone": b.driver.phone,
+            "vehicle_type": b.driver.vehicle_type,
+            "vehicle_plate": b.driver.vehicle_plate,
+            "vehicle_model": b.driver.vehicle_model,
+            "rating": b.driver.rating,
+        } if b.driver else None,
+        "service_type": b.service_type,
+        "service_name": b.service_name,
+        "origin_address": b.origin_address,
+        "destination_address": b.destination_address,
+        "origin_lat": b.origin_lat,
+        "origin_lon": b.origin_lon,
+        "destination_lat": b.destination_lat,
+        "destination_lon": b.destination_lon,
+        "distance_km": round(b.distance_meters / 1000.0, 2),
+        "estimated_price_vnd": b.estimated_price_vnd,
+        "status": b.status.value,
+        "cancel_reason": b.cancel_reason,
+        "created_at_time": b.created_at_time,
+        "elapsed_seconds": round(time.time() - b.created_at_time, 1),
+        "seconds_until_auto_cancel": max(0, int(round(300.0 - (time.time() - b.created_at_time)))) if b.status.value == "WAITING" else 0,
+        "current_driver_lat": b.current_driver_lat,
+        "current_driver_lon": b.current_driver_lon,
+        "pickup_route_coords": b.pickup_route_coords,
+        "trip_route_coords": b.trip_route_coords,
+    }
+
+
+@app.post("/api/driver/decision")
+async def driver_decision_api(payload: dict):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    try:
+        driver_id = payload["driver_id"]
+        booking_id = payload["booking_id"]
+        decision = payload["decision"]
+    except KeyError as e:
+        return JSONResponse({"error": f"Thiếu trường dữ liệu: {e}"}, status_code=400)
+
+    res = booking_service.driver_respond_trip(driver_id, booking_id, decision)
+    if not res.success or not res.data:
+        return JSONResponse({"error": res.error}, status_code=400)
+    b = res.data
+    return {
+        "status": "ok",
+        "decision": decision,
+        "booking_id": b.booking_id,
+        "trip_status": b.status.value,
+        "driver_id": driver_id,
+    }
+
+
+@app.post("/api/driver/trip-action")
+async def driver_trip_action_api(payload: dict):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    try:
+        driver_id = payload["driver_id"]
+        booking_id = payload["booking_id"]
+        action = payload["action"]
+    except KeyError as e:
+        return JSONResponse({"error": f"Thiếu trường dữ liệu: {e}"}, status_code=400)
+
+    res = booking_service.update_trip_action(driver_id, booking_id, action)
+    if not res.success or not res.data:
+        return JSONResponse({"error": res.error}, status_code=400)
+    b = res.data
+    return {
+        "status": "ok",
+        "action": action,
+        "booking_id": b.booking_id,
+        "trip_status": b.status.value,
+    }
+
+
+@app.get("/api/management/trips")
+async def get_management_trips_api():
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    summary = booking_service.get_management_summary()
+    return summary
+
+
 @app.get("/api/status")
 async def get_status():
     return {
@@ -602,6 +961,26 @@ async def websocket_simulation(websocket: WebSocket):
         if sim_state["running"] and sim_engine_ref:
             snapshot = build_snapshot(sim_engine_ref, all_requests_ref)
             await websocket.send_text(json.dumps(snapshot, ensure_ascii=False))
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+    except WebSocketDisconnect:
+        active_connections.discard(websocket)
+    except Exception:
+        active_connections.discard(websocket)
+
+
+@app.websocket("/ws/portal")
+async def websocket_portal(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.add(websocket)
+    try:
+        await websocket.send_text(json.dumps({
+            "type": "portal_welcome",
+            "map_loaded": road_map is not None,
+            "drivers_count": len(booking_service.drivers) if booking_service else 0,
+        }))
         while True:
             data = await websocket.receive_text()
             if data == "ping":

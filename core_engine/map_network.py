@@ -36,6 +36,22 @@ class RealRoadMap:
         """Lấy ngẫu nhiên một nút giao thông làm điểm đón/trả khách."""
         return random.choice(self.nodes)
 
+    def get_nearest_node(self, lat: float, lon: float) -> int:
+        """Tìm nút giao lộ OSM gần nhất với tọa độ (lat, lon) bằng thư viện OSMnx."""
+        try:
+            return int(ox.distance.nearest_nodes(self.graph_latlon, X=lon, Y=lat))
+        except Exception:
+            # Thuật toán dự phòng tìm kiếm khoảng cách nhỏ nhất trên danh sách nút OSM
+            best_node = self.nodes[0]
+            min_dist_sq = float('inf')
+            for nid in self.nodes:
+                nlat, nlon = self.get_node_latlon(nid)
+                d = (nlat - lat) ** 2 + (nlon - lon) ** 2
+                if d < min_dist_sq:
+                    min_dist_sq = d
+                    best_node = nid
+            return best_node
+
     def get_shortest_path(self, source_node: int, target_node: int) -> List[int]:
         """Tìm danh sách các nút giao lộ trên đường đi ngắn nhất giữa 2 điểm."""
         try:

@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grab Driver Partner - Cửa sổ Nhận cuốc</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --grab-green: #00B14F;
+      --grab-green-dark: #008B3E;
+      --grab-dark: #121820;
+      --grab-dark-card: #1C2430;
+      --grab-dark-sub: #252F3E;
+      --border-dark: rgba(255,255,255,0.1);
+      --text-light: #F8FAFC;
+      --text-muted: #94A3B8;
+      --grab-red: #EF4444;
+      --grab-yellow: #F59E0B;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-lg: 0 16px 36px rgba(0,0,0,0.4);
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; font-family: 'Public Sans', sans-serif; }
+    body { background: var(--grab-dark); color: var(--text-light); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* HEADER */
+    #header {
+      height: 60px;
+      background: var(--grab-dark-card);
+      border-bottom: 1px solid var(--border-dark);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 12px; }
+    .grab-badge {
+      background: var(--grab-green);
+      color: #fff;
+      font-weight: 900;
+      font-size: 16px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: -0.5px;
+    }
+    .brand-text h1 { font-size: 15px; font-weight: 800; color: #fff; }
+    .brand-text p { font-size: 11px; color: var(--text-muted); }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .nav-btn {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-light);
+      background: var(--grab-dark-sub);
+      border: 1px solid var(--border-dark);
+      padding: 6px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover { background: #334155; }
+
+    /* APP BODY */
+    #main-container {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* SIDEBAR */
+    #sidebar {
+      width: 460px;
+      background: var(--grab-dark);
+      border-right: 1px solid var(--border-dark);
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      overflow-y: auto;
+    }
+
+    /* MAP AREA */
+    #map-container {
+      flex: 1;
+      position: relative;
+      background: #000;
+    }
+    #map { width: 100%; height: 100%; }
+
+    /* DRIVER TOP HUD */
+    .driver-hud {
+      padding: 16px 20px;
+      background: var(--grab-dark-card);
+      border-bottom: 1px solid var(--border-dark);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .driver-profile { display: flex; align-items: center; gap: 12px; }
+    .driver-avatar-circle {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: #334155; display: flex; align-items: center; justify-content: center;
+      font-size: 22px; border: 2px solid var(--grab-green);
+    }
+    .driver-title { font-size: 15px; font-weight: 800; color: #fff; }
+    .driver-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .toggle-online-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .toggle-online-btn.online { background: var(--grab-green); color: #fff; }
+    .toggle-online-btn.offline { background: #475569; color: #CBD5E1; }
+
+    /* SHIFT STATS */
+    .shift-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 12px 20px;
+      background: rgba(0,0,0,0.25);
+      border-bottom: 1px solid var(--border-dark);
+    }
+    .stat-col { text-align: center; }
+    .stat-value { font-size: 18px; font-weight: 800; color: #fff; }
+    .stat-label { font-size: 11px; color: var(--text-muted); }
+
+    /* ONBOARDING REGISTRATION STEP */
+    .onboard-card {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .onboard-title { font-size: 18px; font-weight: 800; color: #fff; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+    .form-input {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-dark);
+      font-size: 14px;
+      background: var(--grab-dark-card);
+      color: #fff;
+    }
+    .form-input:focus { outline: none; border-color: var(--grab-green); }
+    .form-select {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-dark);
+      font-size: 14px;
+      background: var(--grab-dark-card);
+      color: #fff;
+      cursor: pointer;
+    }
+
+    /* JOB FEED LIST */
+    .job-feed-header {
+      padding: 14px 20px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .job-feed-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .job-feed-scroll {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+    .job-card {
+      background: var(--grab-dark-card);
+      border: 1px solid var(--border-dark);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .job-card:hover { border-color: var(--grab-green); transform: translateY(-2px); }
+    .job-card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .job-fare { font-size: 18px; font-weight: 800; color: var(--grab-green); }
+    .job-service-tag {
+      background: rgba(0, 177, 79, 0.2);
+      color: var(--grab-green);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    /* JOB DETAIL MODAL (CHOICE: ACCEPT OR DECLINE) */
+    .detail-card {
+      background: var(--grab-dark-card);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: var(--shadow-lg);
+    }
+    .mini-map-wrap {
+      width: 100%;
+      height: 180px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border-dark);
+    }
+    #mini-map { width: 100%; height: 100%; }
+
+    .choice-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn-accept {
+      background: var(--grab-green);
+      color: #fff;
+      border: none;
+      padding: 14px;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn-accept:hover { background: var(--grab-green-dark); }
+    .btn-decline {
+      background: #334155;
+      color: #fff;
+      border: 1px solid var(--border-dark);
+      padding: 14px;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .btn-decline:hover { background: #475569; }
+
+    /* NAVIGATION HUD */
+    .hud-card {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .hud-status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      background: #DBEAFE;
+      color: #1E40AF;
+    }
+    .btn-nav-action {
+      background: var(--grab-green);
+      color: #fff;
+      border: none;
+      padding: 14px;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    /* Leaflet Pin Styles */
+    .custom-div-icon { background: transparent; border: none; }
+    .marker-pin {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 2px solid #fff;
+    }
+    .pin-pickup { background: var(--grab-green); }
+    .pin-dropoff { background: var(--grab-red); }
+    .pin-driver { background: #3B82F6; }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header id="header">
+    <div class="brand-wrap">
+      <div class="grab-badge">Grab</div>
+      <div class="brand-text">
+        <h1>Tài xế Đối tác (Driver Partner)</h1>
+        <p>Cửa sổ Nhận cuốc & Điều hướng chuyến đi Hà Nội</p>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <a href="/passenger" target="_blank" class="nav-btn">
+        <span>👤 Mở màn hình Khách hàng</span>
+      </a>
+      <a href="/management" target="_blank" class="nav-btn">
+        <span>🖥️ Mở Web Quản lý</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main id="main-container">
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar">
+
+      <!-- MÀN HÌNH ONBOARDING: NHẬP THÔNG TIN TÀI XẾ (NẾU CHƯA CÓ CA) -->
+      <section id="driverOnboardSection" class="onboard-card" style="display:none;">
+        <div class="onboard-title">Thông tin Tài xế Đối tác</div>
+        <div style="font-size:12px; color:var(--text-muted);">Đăng ký phương tiện và điểm bắt đầu để nhận cuốc xe</div>
+
+        <div class="form-group">
+          <label class="form-label">Họ và tên tài xế *</label>
+          <input type="text" id="inpDriverName" class="form-input" value="Trần Đình Trọng" placeholder="Ví dụ: Trần Đình Trọng"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Số điện thoại *</label>
+          <input type="tel" id="inpDriverPhone" class="form-input" value="0988 765 432" placeholder="Ví dụ: 0988 765 432"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Biển số xe *</label>
+          <input type="text" id="inpDriverPlate" class="form-input" value="29A-888.88" placeholder="29A-888.88"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dòng xe / Phương tiện *</label>
+          <input type="text" id="inpDriverModel" class="form-input" value="Toyota Vios 2024" placeholder="Toyota Vios 2024"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Loại dịch vụ đăng ký *</label>
+          <select id="inpDriverType" class="form-select">
+            <option value="grab_car">GrabCar (Ô tô 4 chỗ)</option>
+            <option value="grab_bike">GrabBike (Xe máy)</option>
+            <option value="grab_car_plus">GrabCar Plus (Xe cao cấp)</option>
+            <option value="grab_car_share">GrabCar Share (Ghép chuyến)</option>
+          </select>
+        </div>
+
+        <button class="btn-accept" style="width:100%; margin-top:8px;" onclick="registerDriverSession()">
+          <span>Bắt đầu Ca làm việc</span>
+        </button>
+      </section>
+
+      <!-- GIAO DIỆN CA LÀM VIỆC CHÍNH -->
+      <div id="driverActiveWorkspace" style="display:flex; flex-direction:column; flex:1;">
+
+        <!-- THÔNG TIN TÀI XẾ & CÔNG TẮC ONLINE -->
+        <div class="driver-hud">
+          <div class="driver-profile">
+            <div class="driver-avatar-circle">👨‍✈️</div>
+            <div>
+              <div class="driver-title" id="dName">Trần Đình Trọng</div>
+              <div class="driver-subtitle" id="dPlate">29A-888.88 &bull; Toyota Vios</div>
+            </div>
+          </div>
+          <button class="toggle-online-btn online" id="btnToggleOnline" onclick="toggleOnline()">
+            <span>Trực tuyến</span>
+          </button>
+        </div>
+
+        <!-- THỐNG KÊ DOANH THU & CHUYẾN ĐI -->
+        <div class="shift-stats">
+          <div class="stat-col">
+            <div class="stat-value" id="statIncome">0 đ</div>
+            <div class="stat-label">Thu nhập hôm nay</div>
+          </div>
+          <div class="stat-col">
+            <div class="stat-value" id="statTrips">0</div>
+            <div class="stat-label">Chuyến hoàn thành</div>
+          </div>
+        </div>
+
+        <!-- CỬA SỔ NHẬN CUỐC (JOB FEED) -->
+        <div id="jobFeedSection" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+          <div class="job-feed-header">
+            <div class="job-feed-title">Cuốc xe khả dụng (<span id="jobCount">0</span>)</div>
+            <button onclick="loadAvailableJobs()" style="background:transparent; border:none; color:var(--grab-green); font-size:12px; font-weight:700; cursor:pointer;">
+              🔄 Làm mới
+            </button>
+          </div>
+
+          <div class="job-feed-scroll" id="jobList">
+            <!-- Render danh sách cuốc xe có thể nhận -->
+          </div>
+        </div>
+
+        <!-- POPUP CHI TIẾT CUỐC XE (TÀI XẾ CHỌN NHẬN HOẶC TỪ CHỐI) -->
+        <div id="jobDetailSection" class="detail-card" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <span class="job-service-tag" id="mdlServiceTag">GrabCar 4 chỗ</span>
+              <div class="job-fare" id="mdlFare" style="margin-top:4px;">25.000 đ</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px; color:var(--text-muted);">Đón cách bạn</div>
+              <div style="font-size:14px; font-weight:700; color:#fff;" id="mdlDistanceEta">450 m (2 phút)</div>
+            </div>
+          </div>
+
+          <!-- BẢN ĐỒ NHỎ (MINI-MAP) CỦA CUỐC XE -->
+          <div class="mini-map-wrap">
+            <div id="mini-map"></div>
+          </div>
+
+          <!-- THÔNG TIN KHÁCH HÀNG & LỘ TRÌNH -->
+          <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:16px;">👤</span>
+              <div>
+                <strong style="color:#fff; font-size:13px;" id="mdlCustName">Nguyễn Thu Trang</strong>
+                <span style="font-size:11px; color:var(--text-muted); margin-left:6px;" id="mdlCustPhone">0912 345 678</span>
+              </div>
+            </div>
+            <div style="font-size:12px; color:#CBD5E1;">
+              🟢 <strong>Đón:</strong> <span id="mdlPickup">Hồ Hoàn Kiếm</span>
+            </div>
+            <div style="font-size:12px; color:#CBD5E1;">
+              🔴 <strong>Trả:</strong> <span id="mdlDropoff">Nhà hát Lớn</span>
+            </div>
+          </div>
+
+          <!-- 2 NÚT HÀNH ĐỘNG: CHẤP NHẬN HOẶC TỪ CHỐI -->
+          <div class="choice-actions">
+            <button class="btn-decline" onclick="declineJob()">
+              <span>❌ Bỏ qua / Từ chối</span>
+            </button>
+            <button class="btn-accept" onclick="acceptJob()">
+              <span>✅ NHẬN CUỐC NÀY</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- MÀN HÌNH ĐIỀU HƯỚNG CHUYẾN ĐI (NAVIGATION HUD) -->
+        <div id="navigationSection" class="hud-card" style="display:none;">
+          <div style="background:var(--grab-dark-card); border-radius:12px; padding:16px; border:1px solid var(--border-dark);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <span class="hud-status-badge" id="navStatusBadge">ĐANG ĐẾN ĐIỂM ĐÓN</span>
+              <strong style="color:var(--grab-green); font-size:16px;" id="navFare">25.000 đ</strong>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+              <div style="font-size:22px;">👤</div>
+              <div>
+                <div style="font-weight:800; font-size:14px; color:#fff;" id="navCustName">Khách: Nguyễn Thu Trang</div>
+                <div style="font-size:11px; color:var(--text-muted);" id="navCustPhone">0912 345 678</div>
+              </div>
+            </div>
+
+            <div style="font-size:12px; color:var(--text-muted); margin-top:8px;">
+              <div>🟢 <strong>Điểm đón:</strong> <span id="navPickup" style="color:#fff;">Hồ Hoàn Kiếm</span></div>
+              <div style="margin-top:4px;">🔴 <strong>Điểm trả:</strong> <span id="navDropoff" style="color:#fff;">Nhà hát Lớn</span></div>
+            </div>
+          </div>
+
+          <!-- CÁC NÚT TIẾN TRÌNH LẦN LƯỢT -->
+          <button class="btn-nav-action" id="btnArrived" onclick="triggerTripAction('arrived_pickup')">
+            <span>📍 Tôi đã đến điểm đón</span>
+          </button>
+          <button class="btn-nav-action" id="btnStartTrip" style="display:none; background:#2563EB;" onclick="triggerTripAction('start_trip')">
+            <span>🚀 Bắt đầu chuyến đi (Khách đã lên xe)</span>
+          </button>
+          <button class="btn-nav-action" id="btnFinishTrip" style="display:none; background:#059669;" onclick="triggerTripAction('complete_trip')">
+            <span>🏁 Hoàn thành chuyến đi (Thu tiền & Đóng cuốc)</span>
+          </button>
+        </div>
+
+      </div>
+
+    </aside>
+
+    <!-- BẢN ĐỒ LỚN DẪN ĐƯỜNG CHO TÀI XẾ -->
+    <div id="map-container">
+      <div id="map"></div>
+    </div>
+
+  </main>
+
+  <script>
+    const state = {
+      driver: null,
+      selectedJob: null,
+      activeBookingId: null,
+      activeBooking: null,
+    };
+
+    let mainMap = null, miniMap = null;
+    let driverMarker = null, routeLayer = null;
+    let miniPickupMarker = null, miniDropoffMarker = null, miniRouteLayer = null;
+
+    // Web Audio Synthesizer (Chuông báo nổ cuốc xe)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playNotificationSound() {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 784;
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+
+        setTimeout(() => {
+          const osc2 = audioCtx.createOscillator();
+          const gain2 = audioCtx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(audioCtx.destination);
+          osc2.frequency.value = 1046;
+          gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+          osc2.start();
+          osc2.stop(audioCtx.currentTime + 0.25);
+        }, 160);
+      } catch (e) {}
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      initMainMap();
+      await initDriverSession();
+      connectWS();
+    });
+
+    function initMainMap() {
+      mainMap = L.map('map').setView([21.0285, 105.8542], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(mainMap);
+    }
+
+    async function initDriverSession() {
+      try {
+        const res = await fetch('/api/driver/D_01');
+        const d = await res.json();
+        if (d.driver_id) {
+          state.driver = d;
+          document.getElementById('dName').innerText = d.name;
+          document.getElementById('dPlate').innerText = `${d.vehicle_plate} &bull; ${d.vehicle_model}`;
+          document.getElementById('statIncome').innerText = `${d.total_income.toLocaleString()} đ`;
+          document.getElementById('statTrips').innerText = d.total_trips;
+
+          // Cắm xe lên bản đồ
+          if (driverMarker) mainMap.removeLayer(driverMarker);
+          driverMarker = L.marker([d.current_lat, d.current_lon], {
+            icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-driver">🚗</div>` })
+          }).addTo(mainMap).bindPopup(`Vị trí của bạn: ${d.name}`).openPopup();
+          mainMap.panTo([d.current_lat, d.current_lon]);
+
+          loadAvailableJobs();
+        } else {
+          document.getElementById('driverOnboardSection').style.display = 'flex';
+          document.getElementById('driverActiveWorkspace').style.display = 'none';
+        }
+      } catch (e) {
+        document.getElementById('driverOnboardSection').style.display = 'flex';
+        document.getElementById('driverActiveWorkspace').style.display = 'none';
+      }
+    }
+
+    async function registerDriverSession() {
+      const name = document.getElementById('inpDriverName').value.trim();
+      const phone = document.getElementById('inpDriverPhone').value.trim();
+      const plate = document.getElementById('inpDriverPlate').value.trim();
+      const model = document.getElementById('inpDriverModel').value.trim();
+      const vtype = document.getElementById('inpDriverType').value;
+
+      try {
+        const res = await fetch('/api/driver/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ name, phone, vehicle_plate: plate, vehicle_model: model, vehicle_type: vtype })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          state.driver = data.driver;
+          document.getElementById('driverOnboardSection').style.display = 'none';
+          document.getElementById('driverActiveWorkspace').style.display = 'flex';
+          initDriverSession();
+        }
+      } catch (e) {
+        alert('Lỗi đăng ký tài xế!');
+      }
+    }
+
+    let ws = null;
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/ws/portal`);
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'portal_booking_created') {
+            playNotificationSound();
+            loadAvailableJobs();
+          } else if (msg.type === 'portal_booking_matched' || msg.type === 'portal_booking_cancelled') {
+            loadAvailableJobs();
+          }
+        } catch (err) {}
+      };
+    }
+
+    function toggleOnline() {
+      const btn = document.getElementById('btnToggleOnline');
+      if (btn.classList.contains('online')) {
+        btn.classList.remove('online');
+        btn.classList.add('offline');
+        btn.innerText = 'Nghỉ ngơi (Offline)';
+      } else {
+        btn.classList.remove('offline');
+        btn.classList.add('online');
+        btn.innerText = 'Trực tuyến';
+        loadAvailableJobs();
+      }
+    }
+
+    async function loadAvailableJobs() {
+      if (!state.driver) return;
+      try {
+        const res = await fetch(`/api/driver/${state.driver.driver_id}/available-trips`);
+        const data = await res.json();
+        renderJobList(data.trips || []);
+      } catch (e) {}
+    }
+
+    function renderJobList(trips) {
+      const list = document.getElementById('jobList');
+      document.getElementById('jobCount').innerText = trips.length;
+
+      if (trips.length === 0) {
+        list.innerHTML = `
+          <div style="text-align:center; padding:50px 20px; color:var(--text-muted);">
+            <div style="font-size:32px;">☕</div>
+            <div style="margin-top:10px; font-size:13px;">Chưa có cuốc xe mới trong khu vực Hoàn Kiếm. Khi khách đặt xe, hệ thống sẽ phát âm thanh và hiển thị ngay tại đây!</div>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = '';
+      trips.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'job-card';
+        card.onclick = () => openJobDetail(t);
+        card.innerHTML = `
+          <div class="job-card-top">
+            <div>
+              <span class="job-service-tag">${t.service_name}</span>
+              <div class="job-fare" style="margin-top:4px;">${t.estimated_price_vnd.toLocaleString()} đ</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px; color:var(--text-muted);">Đón cách bạn</div>
+              <div style="font-size:13px; font-weight:700; color:#fff;">${t.distance_to_pickup_m} m (${t.pickup_eta_minutes}p)</div>
+            </div>
+          </div>
+          <div style="font-size:12px; color:#CBD5E1; line-height:1.4;">
+            <div>🟢 <strong>Đón:</strong> ${t.origin_address}</div>
+            <div style="margin-top:2px;">🔴 <strong>Trả:</strong> ${t.destination_address} (${t.trip_distance_km} km)</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
+            <span>Khách: <strong>${t.customer_name}</strong></span>
+            <span>Chờ: ${t.wait_seconds_elapsed}s (Hủy sau ${t.seconds_until_auto_cancel}s)</span>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function openJobDetail(job) {
+      state.selectedJob = job;
+      document.getElementById('jobFeedSection').style.display = 'none';
+      const detail = document.getElementById('jobDetailSection');
+      detail.style.display = 'flex';
+
+      document.getElementById('mdlServiceTag').innerText = job.service_name;
+      document.getElementById('mdlFare').innerText = `${job.estimated_price_vnd.toLocaleString()} đ`;
+      document.getElementById('mdlDistanceEta').innerText = `${job.distance_to_pickup_m} m (${job.pickup_eta_minutes} phút)`;
+      document.getElementById('mdlCustName').innerText = job.customer_name;
+      document.getElementById('mdlCustPhone').innerText = job.customer_phone;
+      document.getElementById('mdlPickup').innerText = job.origin_address;
+      document.getElementById('mdlDropoff').innerText = job.destination_address;
+
+      initMiniMap(job);
+    }
+
+    function initMiniMap(job) {
+      const container = document.getElementById('mini-map');
+      if (!miniMap) {
+        miniMap = L.map(container, { zoomControl: false }).setView([job.origin_lat, job.origin_lon], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
+      } else {
+        miniMap.invalidateSize();
+      }
+
+      if (miniPickupMarker) miniMap.removeLayer(miniPickupMarker);
+      if (miniDropoffMarker) miniMap.removeLayer(miniDropoffMarker);
+      if (miniRouteLayer) miniMap.removeLayer(miniRouteLayer);
+
+      miniPickupMarker = L.marker([job.origin_lat, job.origin_lon]).addTo(miniMap);
+      miniDropoffMarker = L.marker([job.destination_lat, job.destination_lon]).addTo(miniMap);
+
+      if (job.route_coords && job.route_coords.length > 1) {
+        miniRouteLayer = L.polyline(job.route_coords, { color: '#00B14F', weight: 4 }).addTo(miniMap);
+        miniMap.fitBounds(miniRouteLayer.getBounds(), { padding: [15, 15] });
+      }
+    }
+
+    // TÀI XẾ TỪ CHỐI / BỎ QUA CUỐC
+    async function declineJob() {
+      if (!state.selectedJob) return;
+      try {
+        await fetch('/api/driver/decision', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            driver_id: state.driver.driver_id,
+            booking_id: state.selectedJob.booking_id,
+            decision: 'decline'
+          })
+        });
+        document.getElementById('jobDetailSection').style.display = 'none';
+        document.getElementById('jobFeedSection').style.display = 'flex';
+        state.selectedJob = null;
+        loadAvailableJobs();
+      } catch (e) {
+        alert('Lỗi gửi từ chối');
+      }
+    }
+
+    // TÀI XẾ CHẤP NHẬN NHẬN CUỐC
+    async function acceptJob() {
+      if (!state.selectedJob) return;
+      const job = state.selectedJob;
+
+      try {
+        const res = await fetch('/api/driver/decision', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            driver_id: state.driver.driver_id,
+            booking_id: job.booking_id,
+            decision: 'accept'
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          playNotificationSound();
+          state.activeBookingId = job.booking_id;
+          state.activeBooking = job;
+
+          document.getElementById('jobDetailSection').style.display = 'none';
+          document.getElementById('navigationSection').style.display = 'flex';
+
+          document.getElementById('navCustName').innerText = `Khách: ${job.customer_name}`;
+          document.getElementById('navCustPhone').innerText = job.customer_phone;
+          document.getElementById('navPickup').innerText = job.origin_address;
+          document.getElementById('navDropoff').innerText = job.destination_address;
+          document.getElementById('navFare').innerText = `${job.estimated_price_vnd.toLocaleString()} đ`;
+
+          if (routeLayer) mainMap.removeLayer(routeLayer);
+          if (job.route_coords) {
+            routeLayer = L.polyline(job.route_coords, { color: '#00B14F', weight: 6 }).addTo(mainMap);
+            mainMap.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
+          }
+        } else {
+          alert('Không thể nhận cuốc: ' + (data.error || 'Cuốc có thể đã được tài xế khác nhận'));
+          document.getElementById('jobDetailSection').style.display = 'none';
+          document.getElementById('jobFeedSection').style.display = 'flex';
+          loadAvailableJobs();
+        }
+      } catch (e) {
+        alert('Lỗi kết nối khi nhận cuốc');
+      }
+    }
+
+    // TIẾN TRÌNH CHUYẾN ĐI
+    async function triggerTripAction(action) {
+      if (!state.activeBookingId) return;
+
+      try {
+        const res = await fetch('/api/driver/trip-action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            driver_id: state.driver.driver_id,
+            booking_id: state.activeBookingId,
+            action: action
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          if (action === 'arrived_pickup') {
+            document.getElementById('navStatusBadge').innerText = 'ĐÃ ĐẾN ĐIỂM ĐÓN';
+            document.getElementById('btnArrived').style.display = 'none';
+            document.getElementById('btnStartTrip').style.display = 'block';
+          } else if (action === 'start_trip') {
+            document.getElementById('navStatusBadge').innerText = 'ĐANG TRÊN ĐƯỜNG TRẢ KHÁCH';
+            document.getElementById('btnStartTrip').style.display = 'none';
+            document.getElementById('btnFinishTrip').style.display = 'block';
+          } else if (action === 'complete_trip') {
+            alert('Chúc mừng bạn đã hoàn thành chuyến đi!');
+            document.getElementById('navigationSection').style.display = 'none';
+            document.getElementById('jobFeedSection').style.display = 'flex';
+            document.getElementById('btnFinishTrip').style.display = 'none';
+            document.getElementById('btnArrived').style.display = 'block';
+            state.activeBookingId = null;
+
+            initDriverSession();
+            loadAvailableJobs();
+          }
+        }
+      } catch (e) {
+        alert('Lỗi cập nhật tiến trình');
+      }
+    }
+  </script>
+</body>
+</html>

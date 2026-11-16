@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grab Operations - Hệ thống Quản lý & Điều phối</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --grab-green: #00B14F;
+      --grab-green-dark: #008B3E;
+      --grab-green-light: #E8F8F0;
+      --border-color: #E2E8F0;
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --grab-red: #EF4444;
+      --grab-yellow: #F59E0B;
+      --grab-blue: #3B82F6;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+      --shadow-md: 0 8px 24px rgba(0,0,0,0.08);
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; font-family: 'Public Sans', sans-serif; }
+    body { background: #F8FAFC; color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* HEADER */
+    #header {
+      height: 60px;
+      background: #FFFFFF;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 1000;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    }
+    .brand-wrap { display: flex; align-items: center; gap: 12px; }
+    .grab-badge {
+      background: var(--grab-green);
+      color: #fff;
+      font-weight: 900;
+      font-size: 16px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: -0.5px;
+    }
+    .brand-title { font-size: 15px; font-weight: 800; color: var(--text-main); }
+    .brand-sub { font-size: 11px; color: var(--text-muted); }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .nav-btn {
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      background: #F1F5F9;
+      border: 1px solid var(--border-color);
+      padding: 6px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover { background: #E2E8F0; }
+
+    /* MAIN LAYOUT */
+    #main-container {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* LEFT SIDEBAR: MANAGEMENT METRICS & TRIPS LIST */
+    #sidebar {
+      width: 480px;
+      background: #FFFFFF;
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+      box-shadow: var(--shadow-sm);
+      overflow-y: auto;
+    }
+
+    /* STATS BAR */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 16px;
+      background: #F8FAFC;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .stat-card {
+      background: #FFFFFF;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+    .stat-val { font-size: 22px; font-weight: 800; color: var(--text-main); }
+    .stat-lbl { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px; }
+
+    /* TRIP DISPATCH LIST */
+    .section-title-bar {
+      padding: 14px 18px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .trip-list-scroll {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .trip-row {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+    .trip-row:hover { background: #F8FAFC; }
+    .trip-row-top { display: flex; justify-content: space-between; align-items: center; }
+    .trip-id { font-size: 12px; font-weight: 800; color: #1E293B; }
+    .badge-status {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .badge-waiting { background: #FEF3C7; color: #92400E; }
+    .badge-matched { background: #DBEAFE; color: #1E40AF; }
+    .badge-intransit { background: var(--grab-green-light); color: var(--grab-green-dark); }
+    .badge-completed { background: #DCFCE7; color: #166534; }
+    .badge-cancelled { background: #FEE2E2; color: #991B1B; }
+
+    /* MAP CONTAINER (BẢN ĐỒ NHỎ / TỔNG THỂ CỦA WEB QUẢN LÝ) */
+    #map-container {
+      flex: 1;
+      position: relative;
+    }
+    #management-map { width: 100%; height: 100%; }
+
+    /* MAP LEGEND OVERLAY */
+    .map-legend-card {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border-color);
+      z-index: 1000;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .legend-row { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #334155; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-pickup { background: var(--grab-green); }
+    .dot-dropoff { background: var(--grab-red); }
+    .dot-driver { background: #1E293B; }
+
+    /* Custom Leaflet Marker Icons */
+    .custom-div-icon { background: transparent; border: none; }
+    .marker-pin {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 2px solid #fff;
+    }
+    .pin-pickup { background: var(--grab-green); }
+    .pin-dropoff { background: var(--grab-red); }
+    .pin-driver { background: #1E293B; }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header id="header">
+    <div class="brand-wrap">
+      <div class="grab-badge">Grab</div>
+      <div>
+        <div class="brand-title">Trung tâm Quản lý & Điều phối (Operations)</div>
+        <div class="brand-sub">Bản đồ số OpenStreetMap &bull; Giám sát toàn bộ vị trí đón, trả khách và đội xe</div>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button onclick="loadManagementData()" style="padding:6px 14px; border-radius:8px; border:1px solid var(--border-color); background:#fff; font-size:12px; font-weight:700; cursor:pointer;">
+        🔄 Cập nhật số liệu
+      </button>
+      <a href="/passenger" target="_blank" class="nav-btn">
+        <span>👤 Mở màn hình Khách</span>
+      </a>
+      <a href="/driver" target="_blank" class="nav-btn">
+        <span>🚗 Mở màn hình Tài xế</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main id="main-container">
+
+    <!-- SIDEBAR: SỐ LIỆU & BẢNG CUỐC XE -->
+    <aside id="sidebar">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-val" id="cntWaiting" style="color:var(--grab-yellow);">0</div>
+          <div class="stat-lbl">Chờ tài xế</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="cntActive" style="color:var(--grab-blue);">0</div>
+          <div class="stat-lbl">Đang chạy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="cntDrivers" style="color:var(--grab-green);">0</div>
+          <div class="stat-lbl">Tài xế trực tuyến</div>
+        </div>
+      </div>
+
+      <div class="section-title-bar">
+        <span>Danh sách Cuốc xe Hệ thống</span>
+        <span id="totalTripsBadge" style="background:#E2E8F0; padding:2px 6px; border-radius:10px; font-size:10px;">0 cuốc</span>
+      </div>
+
+      <div class="trip-list-scroll" id="tripsList">
+        <!-- Render danh sách cuốc xe -->
+      </div>
+    </aside>
+
+    <!-- BẢN ĐỒ NHỎ / TỔNG THỂ CỦA WEB QUẢN LÝ -->
+    <div id="map-container">
+      <div id="management-map"></div>
+
+      <!-- CHÚ GIẢI BẢN ĐỒ -->
+      <div class="map-legend-card">
+        <strong style="color:#1E293B; margin-bottom:2px;">Bản đồ Điều phối:</strong>
+        <div class="legend-row">
+          <div class="legend-dot dot-pickup"></div>
+          <span>Vị trí đón khách (Pickup)</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-dot dot-dropoff"></div>
+          <span>Vị trí trả khách (Dropoff)</span>
+        </div>
+        <div class="legend-row">
+          <div class="legend-dot dot-driver"></div>
+          <span>Vị trí các Tài xế (Fleet)</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let map = null;
+    let markersLayer = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      loadManagementData();
+      connectWS();
+      setInterval(loadManagementData, 5000); // Polling dự phòng mỗi 5s
+    });
+
+    function initMap() {
+      map = L.map('management-map').setView([21.0285, 105.8542], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+
+      markersLayer = L.layerGroup().addTo(map);
+    }
+
+    let ws = null;
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/ws/portal`);
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type && msg.type.startsWith('portal_')) {
+            loadManagementData();
+          }
+        } catch (err) {}
+      };
+    }
+
+    async function loadManagementData() {
+      try {
+        const res = await fetch('/api/management/trips');
+        const data = await res.json();
+
+        document.getElementById('cntWaiting').innerText = data.waiting_trips_count || 0;
+        document.getElementById('cntActive').innerText = data.active_trips_count || 0;
+        document.getElementById('cntDrivers').innerText = data.total_drivers || 0;
+
+        renderMapMarkers(data);
+        renderTripsList(data);
+      } catch (e) {
+        console.error('Lỗi tải dữ liệu quản lý:', e);
+      }
+    }
+
+    function renderMapMarkers(data) {
+      if (!markersLayer) return;
+      markersLayer.clearLayers();
+
+      // 1. Vẽ các điểm đón & trả của cuốc xe chờ
+      (data.waiting_trips || []).forEach(t => {
+        L.marker([t.pickup_lat, t.pickup_lon], {
+          icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-pickup">🟢</div>` })
+        }).addTo(markersLayer).bindPopup(`<strong>ĐÓN: ${t.customer_name}</strong><br/>${t.origin_address}<br/>${t.service_name} &bull; ${t.price_vnd.toLocaleString()} đ`);
+
+        L.marker([t.dropoff_lat, t.dropoff_lon], {
+          icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-dropoff">🔴</div>` })
+        }).addTo(markersLayer).bindPopup(`<strong>TRẢ: ${t.destination_address}</strong>`);
+      });
+
+      // 2. Vẽ các điểm đón & trả của cuốc đang chạy
+      (data.active_trips || []).forEach(t => {
+        L.marker([t.pickup_lat, t.pickup_lon], {
+          icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-pickup">🟢</div>` })
+        }).addTo(markersLayer).bindPopup(`<strong>Đang đón: ${t.customer_name}</strong><br/>Tài xế: ${t.driver_name}`);
+
+        L.marker([t.dropoff_lat, t.dropoff_lon], {
+          icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-dropoff">🔴</div>` })
+        }).addTo(markersLayer).bindPopup(`<strong>Điểm đến: ${t.destination_address}</strong>`);
+      });
+
+      // 3. Vẽ vị trí các tài xế
+      (data.drivers || []).forEach(d => {
+        L.marker([d.lat, d.lon], {
+          icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-driver">🚗</div>` })
+        }).addTo(markersLayer).bindPopup(`<strong>Tài xế: ${d.name}</strong><br/>Xe: ${d.plate} (${d.model})<br/>Trạng thái: <strong>${d.status}</strong>`);
+      });
+    }
+
+    function renderTripsList(data) {
+      const list = document.getElementById('tripsList');
+      list.innerHTML = '';
+
+      const all = [...(data.waiting_trips || []), ...(data.active_trips || []), ...(data.history_trips || [])];
+      document.getElementById('totalTripsBadge').innerText = `${all.length} cuốc`;
+
+      if (all.length === 0) {
+        list.innerHTML = '<div style="padding:40px 20px; text-align:center; color:var(--text-muted); font-size:13px;">Chưa có cuốc xe nào trong hệ thống</div>';
+        return;
+      }
+
+      all.reverse().forEach(t => {
+        let badgeCls = 'badge-waiting';
+        let badgeLbl = 'Chờ tài xế';
+        if (t.status === 'MATCHED' || t.status === 'PICKING_UP') {
+          badgeCls = 'badge-matched'; badgeLbl = 'Đang đón';
+        } else if (t.status === 'IN_TRANSIT') {
+          badgeCls = 'badge-intransit'; badgeLbl = 'Đang chở khách';
+        } else if (t.status === 'COMPLETED') {
+          badgeCls = 'badge-completed'; badgeLbl = 'Hoàn thành';
+        } else if (t.status === 'CANCELLED') {
+          badgeCls = 'badge-cancelled'; badgeLbl = 'Đã hủy';
+        }
+
+        const div = document.createElement('div');
+        div.className = 'trip-row';
+        div.innerHTML = `
+          <div class="trip-row-top">
+            <div>
+              <span class="trip-id">${t.booking_id}</span>
+              <span style="font-size:11px; color:var(--text-muted); margin-left:6px;">${t.service_name}</span>
+            </div>
+            <span class="badge-status ${badgeCls}">${badgeLbl}</span>
+          </div>
+          <div style="font-size:13px; font-weight:700; color:#1E293B;">
+            👤 ${t.customer_name} <span style="font-weight:400; color:var(--text-muted); font-size:11px;">(${t.customer_phone})</span>
+          </div>
+          <div style="font-size:12px; color:#475569; line-height:1.4;">
+            <div>🟢 ${t.origin_address}</div>
+            <div style="margin-top:2px;">🔴 ${t.destination_address}</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border-color); padding-top:6px;">
+            <span>Tài xế: <strong style="color:#1E293B;">${t.driver_name || 'Chưa nhận'}</strong></span>
+            <strong style="color:var(--grab-green-dark); font-size:13px;">${t.price_vnd.toLocaleString()} đ</strong>
+          </div>
+          ${t.cancel_reason ? `<div style="font-size:11px; color:var(--grab-red);">⚠️ ${t.cancel_reason}</div>` : ''}
+        `;
+        list.appendChild(div);
+      });
+    }
+  </script>
+</body>
+</html>
