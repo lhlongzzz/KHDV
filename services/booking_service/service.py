@@ -232,6 +232,7 @@ class BookingService:
         Lấy danh sách các cuốc xe có thể nhận cho tài xế:
         - Cuốc ở trạng thái WAITING
         - Chưa bị tài xế này từ chối
+        - Phù hợp với loại phương tiện (Xe máy chỉ thấy cuốc xe máy, Ô tô chỉ thấy cuốc ô tô)
         - Tính khoảng cách từ vị trí hiện tại của tài xế tới điểm đón
         """
         self.check_timeouts()  # Quét tự động hủy các cuốc quá 5 phút trước khi trả danh sách
@@ -239,12 +240,29 @@ class BookingService:
         driver = self.drivers.get(driver_id)
         declined_set = self.declined_trips.get(driver_id, set())
 
+        # Phân loại tài xế: Xe máy vs Ô tô
+        is_motorcycle_driver = False
+        if driver:
+            v_type = (driver.vehicle_type or "").lower()
+            if any(k in v_type for k in ["bike", "motorcycle", "xe_may", "moto"]):
+                is_motorcycle_driver = True
+            else:
+                is_motorcycle_driver = False
+
         available = []
         for b in self.bookings.values():
             if b.status != BookingState.WAITING:
                 continue
             if b.booking_id in declined_set:
                 continue
+
+            # Lọc theo phương tiện: Xe máy chỉ hiện cuốc xe máy, Ô tô chỉ hiện cuốc ô tô
+            is_bike_trip = (b.service_type == ServiceType.GRAB_BIKE.value)
+            if driver:
+                if is_motorcycle_driver and not is_bike_trip:
+                    continue
+                if not is_motorcycle_driver and is_bike_trip:
+                    continue
 
             # Khoảng cách từ tài xế tới điểm đón
             pickup_dist = 0.0

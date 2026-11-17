@@ -76,7 +76,78 @@
     }
     .nav-btn:hover { background: #334155; }
 
-    /* APP BODY */
+    /* =========================================================================
+       MÀN HÌNH BAN ĐẦU: FORM NHẬP THÔNG TIN TÀI XẾ (CENTERED VIEWPORT)
+       ========================================================================= */
+    #driverOnboardViewport {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      overflow-y: auto;
+    }
+
+    .onboard-card {
+      background: var(--grab-dark-card);
+      width: 100%;
+      max-width: 500px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-dark);
+      box-shadow: var(--shadow-lg);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .onboard-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 177, 79, 0.15);
+      color: var(--grab-green);
+      font-size: 12px;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: 20px;
+      width: fit-content;
+    }
+    .onboard-title { font-size: 22px; font-weight: 800; color: #fff; }
+    .onboard-subtitle { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+    .form-input {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-dark);
+      font-size: 14px;
+      background: var(--grab-dark);
+      color: #fff;
+      transition: border 0.2s;
+    }
+    .form-input:focus { outline: none; border-color: var(--grab-green); }
+    .form-select {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-dark);
+      font-size: 14px;
+      background: var(--grab-dark);
+      color: #fff;
+      cursor: pointer;
+    }
+    .form-select:focus { outline: none; border-color: var(--grab-green); }
+
+    /* =========================================================================
+       GIAO DIỆN CHÍNH CỦA TÀI XẾ: CỬA SỔ NHẬN CUỐC + BẢN ĐỒ
+       ========================================================================= */
     #main-container {
       flex: 1;
       display: flex;
@@ -84,7 +155,6 @@
       overflow: hidden;
     }
 
-    /* SIDEBAR */
     #sidebar {
       width: 460px;
       background: var(--grab-dark);
@@ -95,7 +165,6 @@
       overflow-y: auto;
     }
 
-    /* MAP AREA */
     #map-container {
       flex: 1;
       position: relative;
@@ -148,33 +217,17 @@
     .stat-value { font-size: 18px; font-weight: 800; color: #fff; }
     .stat-label { font-size: 11px; color: var(--text-muted); }
 
-    /* ONBOARDING REGISTRATION STEP */
-    .onboard-card {
-      padding: 24px;
+    /* FILTER VEHICLE BADGE */
+    .filter-vehicle-notice {
+      padding: 8px 18px;
+      background: rgba(0, 177, 79, 0.12);
+      border-bottom: 1px solid rgba(0, 177, 79, 0.25);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--grab-green);
       display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .onboard-title { font-size: 18px; font-weight: 800; color: #fff; }
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-label { font-size: 12px; font-weight: 700; color: var(--text-muted); }
-    .form-input {
-      padding: 12px 14px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-dark);
-      font-size: 14px;
-      background: var(--grab-dark-card);
-      color: #fff;
-    }
-    .form-input:focus { outline: none; border-color: var(--grab-green); }
-    .form-select {
-      padding: 12px 14px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-dark);
-      font-size: 14px;
-      background: var(--grab-dark-card);
-      color: #fff;
-      cursor: pointer;
+      align-items: center;
+      justify-content: space-between;
     }
 
     /* JOB FEED LIST */
@@ -216,7 +269,7 @@
       border-radius: 6px;
     }
 
-    /* JOB DETAIL MODAL (CHOICE: ACCEPT OR DECLINE) */
+    /* JOB DETAIL POPUP (ACCEPT OR DECLINE) */
     .detail-card {
       background: var(--grab-dark-card);
       border: 1px solid rgba(255,255,255,0.15);
@@ -342,58 +395,76 @@
     </div>
   </header>
 
-  <!-- MAIN -->
-  <main id="main-container">
+  <!-- =========================================================================
+       WINDOW 1: NHẬP THÔNG TIN TÀI XẾ (KHI MỚI VÀO WEB)
+       ========================================================================= -->
+  <div id="driverOnboardViewport">
+    <div class="onboard-card">
+      <div class="onboard-badge">Đăng ký Đối tác &bull; Bắt đầu ca</div>
+      <div>
+        <div class="onboard-title">Thông tin Cá nhân Tài xế</div>
+        <div class="onboard-subtitle">Nhập thông tin cá nhân và phương tiện để hệ thống lọc các chuyến xe phù hợp nhất.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Họ và tên tài xế *</label>
+        <input type="text" id="inpDriverName" class="form-input" value="Trần Đình Trọng" placeholder="Ví dụ: Trần Đình Trọng"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Số điện thoại *</label>
+        <input type="tel" id="inpDriverPhone" class="form-input" value="0988 765 432" placeholder="Ví dụ: 0988 765 432"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Loại xe đăng ký chạy *</label>
+        <select id="inpDriverType" class="form-select" onchange="onDriverVehicleTypeChange()">
+          <option value="grab_bike">🛵 Xe máy (GrabBike)</option>
+          <option value="grab_car">🚗 Ô tô (GrabCar / Plus / Share)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Biển số xe *</label>
+        <input type="text" id="inpDriverPlate" class="form-input" value="29B1-234.56" placeholder="29B1-234.56"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Mẫu mã xe / Dòng xe *</label>
+        <input type="text" id="inpDriverModel" class="form-input" value="Honda Wave Alpha" placeholder="Ví dụ: Honda Wave Alpha"/>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Điểm đỗ bắt đầu (Vị trí hiện tại):</label>
+        <select id="inpDriverStartNode" class="form-select">
+          <option value="">-- Đang tải danh sách địa danh Hoàn Kiếm... --</option>
+        </select>
+      </div>
+
+      <button class="btn-accept" style="width:100%; margin-top:10px;" onclick="registerDriverSession()">
+        <span>XÁC NHẬN & VÀO CỬA SỔ NHẬN CUỐC</span>
+        <span>&rarr;</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       WINDOW 2: GIAO DIỆN CA LÀM VIỆC CHÍNH (CỬA SỔ NHẬN CUỐC + BẢN ĐỒ)
+       ========================================================================= -->
+  <main id="main-container" style="display:none;">
 
     <!-- SIDEBAR -->
     <aside id="sidebar">
 
-      <!-- MÀN HÌNH ONBOARDING: NHẬP THÔNG TIN TÀI XẾ (NẾU CHƯA CÓ CA) -->
-      <section id="driverOnboardSection" class="onboard-card" style="display:none;">
-        <div class="onboard-title">Thông tin Tài xế Đối tác</div>
-        <div style="font-size:12px; color:var(--text-muted);">Đăng ký phương tiện và điểm bắt đầu để nhận cuốc xe</div>
-
-        <div class="form-group">
-          <label class="form-label">Họ và tên tài xế *</label>
-          <input type="text" id="inpDriverName" class="form-input" value="Trần Đình Trọng" placeholder="Ví dụ: Trần Đình Trọng"/>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Số điện thoại *</label>
-          <input type="tel" id="inpDriverPhone" class="form-input" value="0988 765 432" placeholder="Ví dụ: 0988 765 432"/>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Biển số xe *</label>
-          <input type="text" id="inpDriverPlate" class="form-input" value="29A-888.88" placeholder="29A-888.88"/>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Dòng xe / Phương tiện *</label>
-          <input type="text" id="inpDriverModel" class="form-input" value="Toyota Vios 2024" placeholder="Toyota Vios 2024"/>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Loại dịch vụ đăng ký *</label>
-          <select id="inpDriverType" class="form-select">
-            <option value="grab_car">GrabCar (Ô tô 4 chỗ)</option>
-            <option value="grab_bike">GrabBike (Xe máy)</option>
-            <option value="grab_car_plus">GrabCar Plus (Xe cao cấp)</option>
-            <option value="grab_car_share">GrabCar Share (Ghép chuyến)</option>
-          </select>
-        </div>
-
-        <button class="btn-accept" style="width:100%; margin-top:8px;" onclick="registerDriverSession()">
-          <span>Bắt đầu Ca làm việc</span>
-        </button>
-      </section>
-
-      <!-- GIAO DIỆN CA LÀM VIỆC CHÍNH -->
       <div id="driverActiveWorkspace" style="display:flex; flex-direction:column; flex:1;">
 
         <!-- THÔNG TIN TÀI XẾ & CÔNG TẮC ONLINE -->
         <div class="driver-hud">
           <div class="driver-profile">
-            <div class="driver-avatar-circle">👨‍✈️</div>
+            <div class="driver-avatar-circle" id="driverHudAvatar">🛵</div>
             <div>
               <div class="driver-title" id="dName">Trần Đình Trọng</div>
-              <div class="driver-subtitle" id="dPlate">29A-888.88 &bull; Toyota Vios</div>
+              <div class="driver-subtitle" id="dPlate">29B1-234.56 &bull; Honda Wave Alpha</div>
             </div>
           </div>
           <button class="toggle-online-btn online" id="btnToggleOnline" onclick="toggleOnline()">
@@ -405,7 +476,7 @@
         <div class="shift-stats">
           <div class="stat-col">
             <div class="stat-value" id="statIncome">0 đ</div>
-            <div class="stat-label">Thu nhập hôm nay</div>
+            <div class="stat-label">Thu nhập ca hôm nay</div>
           </div>
           <div class="stat-col">
             <div class="stat-value" id="statTrips">0</div>
@@ -413,34 +484,40 @@
           </div>
         </div>
 
+        <!-- THÔNG BÁO BỘ LỌC PHƯƠNG TIỆN -->
+        <div class="filter-vehicle-notice" id="filterVehicleNotice">
+          <span id="filterNoticeText">🔍 Bộ lọc: Đang hiển thị cuốc xe máy</span>
+          <span style="font-size:10px; opacity:0.8;">Theo quy định đăng ký</span>
+        </div>
+
         <!-- CỬA SỔ NHẬN CUỐC (JOB FEED) -->
         <div id="jobFeedSection" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
           <div class="job-feed-header">
-            <div class="job-feed-title">Cuốc xe khả dụng (<span id="jobCount">0</span>)</div>
+            <div class="job-feed-title">Cuốc xe có thể nhận (<span id="jobCount">0</span>)</div>
             <button onclick="loadAvailableJobs()" style="background:transparent; border:none; color:var(--grab-green); font-size:12px; font-weight:700; cursor:pointer;">
               🔄 Làm mới
             </button>
           </div>
 
           <div class="job-feed-scroll" id="jobList">
-            <!-- Render danh sách cuốc xe có thể nhận -->
+            <!-- Danh sách cuốc xe sẽ được render tại đây -->
           </div>
         </div>
 
-        <!-- POPUP CHI TIẾT CUỐC XE (TÀI XẾ CHỌN NHẬN HOẶC TỪ CHỐI) -->
+        <!-- POPUP / THẺ CHI TIẾT CUỐC XE (CHẤP NHẬN HOẶC TỪ CHỐI) -->
         <div id="jobDetailSection" class="detail-card" style="display:none;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
-              <span class="job-service-tag" id="mdlServiceTag">GrabCar 4 chỗ</span>
-              <div class="job-fare" id="mdlFare" style="margin-top:4px;">25.000 đ</div>
+              <span class="job-service-tag" id="mdlServiceTag">GrabBike</span>
+              <div class="job-fare" id="mdlFare" style="margin-top:4px;">12.500 đ</div>
             </div>
             <div style="text-align:right;">
               <div style="font-size:11px; color:var(--text-muted);">Đón cách bạn</div>
-              <div style="font-size:14px; font-weight:700; color:#fff;" id="mdlDistanceEta">450 m (2 phút)</div>
+              <div style="font-size:14px; font-weight:700; color:#fff;" id="mdlDistanceEta">450 m (~2 phút)</div>
             </div>
           </div>
 
-          <!-- BẢN ĐỒ NHỎ (MINI-MAP) CỦA CUỐC XE -->
+          <!-- BẢN ĐỒ NHỎ CỦA CUỐC XE (MINI-MAP) -->
           <div class="mini-map-wrap">
             <div id="mini-map"></div>
           </div>
@@ -455,14 +532,14 @@
               </div>
             </div>
             <div style="font-size:12px; color:#CBD5E1;">
-              🟢 <strong>Đón:</strong> <span id="mdlPickup">Hồ Hoàn Kiếm</span>
+              🟢 <strong>Điểm đón:</strong> <span id="mdlPickup">Hồ Hoàn Kiếm</span>
             </div>
             <div style="font-size:12px; color:#CBD5E1;">
-              🔴 <strong>Trả:</strong> <span id="mdlDropoff">Nhà hát Lớn</span>
+              🔴 <strong>Điểm trả:</strong> <span id="mdlDropoff">Nhà hát Lớn</span>
             </div>
           </div>
 
-          <!-- 2 NÚT HÀNH ĐỘNG: CHẤP NHẬN HOẶC TỪ CHỐI -->
+          <!-- 2 NÚT HÀNH ĐỘNG: TÀI XẾ LỰA CHỌN ĐÓN KHÁCH HOẶC KHÔNG -->
           <div class="choice-actions">
             <button class="btn-decline" onclick="declineJob()">
               <span>❌ Bỏ qua / Từ chối</span>
@@ -521,16 +598,18 @@
   <script>
     const state = {
       driver: null,
+      landmarks: [],
       selectedJob: null,
       activeBookingId: null,
       activeBooking: null,
+      isOnline: true,
     };
 
     let mainMap = null, miniMap = null;
     let driverMarker = null, routeLayer = null;
     let miniPickupMarker = null, miniDropoffMarker = null, miniRouteLayer = null;
 
-    // Web Audio Synthesizer (Chuông báo nổ cuốc xe)
+    // Âm thanh chuông báo có cuốc xe mới
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playNotificationSound() {
       try {
@@ -559,164 +638,220 @@
     }
 
     window.addEventListener('DOMContentLoaded', async () => {
-      initMainMap();
-      await initDriverSession();
+      await loadLandmarks();
       connectWS();
     });
 
-    function initMainMap() {
-      mainMap = L.map('map').setView([21.0285, 105.8542], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(mainMap);
-    }
-
-    async function initDriverSession() {
+    async function loadLandmarks() {
       try {
-        const res = await fetch('/api/driver/D_01');
-        const d = await res.json();
-        if (d.driver_id) {
-          state.driver = d;
-          document.getElementById('dName').innerText = d.name;
-          document.getElementById('dPlate').innerText = `${d.vehicle_plate} &bull; ${d.vehicle_model}`;
-          document.getElementById('statIncome').innerText = `${d.total_income.toLocaleString()} đ`;
-          document.getElementById('statTrips').innerText = d.total_trips;
-
-          // Cắm xe lên bản đồ
-          if (driverMarker) mainMap.removeLayer(driverMarker);
-          driverMarker = L.marker([d.current_lat, d.current_lon], {
-            icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-driver">🚗</div>` })
-          }).addTo(mainMap).bindPopup(`Vị trí của bạn: ${d.name}`).openPopup();
-          mainMap.panTo([d.current_lat, d.current_lon]);
-
-          loadAvailableJobs();
-        } else {
-          document.getElementById('driverOnboardSection').style.display = 'flex';
-          document.getElementById('driverActiveWorkspace').style.display = 'none';
+        const res = await fetch('/api/geo/landmarks');
+        const data = await res.json();
+        if (data.landmarks && data.landmarks.length > 0) {
+          state.landmarks = data.landmarks;
+          const sel = document.getElementById('inpDriverStartNode');
+          sel.innerHTML = '';
+          data.landmarks.forEach(lm => {
+            const opt = document.createElement('option');
+            opt.value = lm.node_id;
+            opt.textContent = `${lm.name} (${lm.address})`;
+            sel.appendChild(opt);
+          });
         }
       } catch (e) {
-        document.getElementById('driverOnboardSection').style.display = 'flex';
-        document.getElementById('driverActiveWorkspace').style.display = 'none';
+        console.error("Lỗi tải địa danh:", e);
       }
     }
 
+    function onDriverVehicleTypeChange() {
+      const vtype = document.getElementById('inpDriverType').value;
+      const plate = document.getElementById('inpDriverPlate');
+      const model = document.getElementById('inpDriverModel');
+      if (vtype === 'grab_bike') {
+        if (!plate.value || plate.value.startsWith('29A')) plate.value = '29B1-234.56';
+        if (!model.value || model.value.includes('Toyota')) model.value = 'Honda Wave Alpha';
+      } else {
+        if (!plate.value || plate.value.startsWith('29B')) plate.value = '29A-888.88';
+        if (!model.value || model.value.includes('Honda')) model.value = 'Toyota Vios 2024';
+      }
+    }
+
+    // =========================================================================
+    // 1. XÁC NHẬN THÔNG TIN TÀI XẾ -> CHUYỂN QUA CỬA SỔ NHẬN CUỐC
+    // =========================================================================
     async function registerDriverSession() {
       const name = document.getElementById('inpDriverName').value.trim();
       const phone = document.getElementById('inpDriverPhone').value.trim();
-      const plate = document.getElementById('inpDriverPlate').value.trim();
-      const model = document.getElementById('inpDriverModel').value.trim();
-      const vtype = document.getElementById('inpDriverType').value;
+      const vehicle_type = document.getElementById('inpDriverType').value;
+      const vehicle_plate = document.getElementById('inpDriverPlate').value.trim();
+      const vehicle_model = document.getElementById('inpDriverModel').value.trim();
+      const start_node = document.getElementById('inpDriverStartNode').value;
+
+      if (!name || !phone || !vehicle_plate || !vehicle_model) {
+        alert("Vui lòng điền đầy đủ thông tin tài xế!");
+        return;
+      }
 
       try {
         const res = await fetch('/api/driver/register', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ name, phone, vehicle_plate: plate, vehicle_model: model, vehicle_type: vtype })
+          body: JSON.stringify({
+            name,
+            phone,
+            vehicle_type,
+            vehicle_plate,
+            vehicle_model,
+            start_node: start_node ? parseInt(start_node) : null
+          })
         });
-        const data = await res.json();
-        if (data.status === 'ok') {
-          state.driver = data.driver;
-          document.getElementById('driverOnboardSection').style.display = 'none';
-          document.getElementById('driverActiveWorkspace').style.display = 'flex';
-          initDriverSession();
+        const d = await res.json();
+        if (d.driver) {
+          state.driver = d.driver;
+
+          // Ẩn màn hình nhập thông tin, hiện giao diện chính
+          document.getElementById('driverOnboardViewport').style.display = 'none';
+          document.getElementById('main-container').style.display = 'flex';
+
+          // Cập nhật thông tin HUD
+          const isBike = (d.driver.vehicle_type || '').includes('bike') || (d.driver.vehicle_type || '').includes('motor');
+          document.getElementById('driverHudAvatar').innerText = isBike ? '🛵' : '🚗';
+          document.getElementById('dName').innerText = d.driver.name;
+          document.getElementById('dPlate').innerText = `${d.driver.vehicle_plate} &bull; ${d.driver.vehicle_model}`;
+          document.getElementById('statIncome').innerText = `${(d.driver.total_income || 0).toLocaleString()} đ`;
+          document.getElementById('statTrips').innerText = d.driver.total_trips || 0;
+
+          // Cập nhật thông báo bộ lọc
+          const filterNotice = document.getElementById('filterNoticeText');
+          if (isBike) {
+            filterNotice.innerText = '🛵 Bộ lọc: Chỉ hiển thị cuốc xe máy (GrabBike)';
+          } else {
+            filterNotice.innerText = '🚗 Bộ lọc: Chỉ hiển thị cuốc ô tô (GrabCar / Plus / Share)';
+          }
+
+          // Khởi tạo bản đồ lớn
+          initMainMap(d.driver.current_lat, d.driver.current_lon, isBike);
+
+          // Tải danh sách cuốc xe khả dụng
+          loadAvailableJobs();
+        } else {
+          alert("Lỗi đăng ký tài xế: " + (d.error || "Không thể khởi tạo ca"));
         }
       } catch (e) {
-        alert('Lỗi đăng ký tài xế!');
+        alert("Lỗi kết nối máy chủ: " + e.message);
       }
     }
 
-    let ws = null;
-    function connectWS() {
-      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(`${protocol}//${location.host}/ws/portal`);
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          if (msg.type === 'portal_booking_created') {
-            playNotificationSound();
-            loadAvailableJobs();
-          } else if (msg.type === 'portal_booking_matched' || msg.type === 'portal_booking_cancelled') {
-            loadAvailableJobs();
-          }
-        } catch (err) {}
-      };
-    }
-
-    function toggleOnline() {
-      const btn = document.getElementById('btnToggleOnline');
-      if (btn.classList.contains('online')) {
-        btn.classList.remove('online');
-        btn.classList.add('offline');
-        btn.innerText = 'Nghỉ ngơi (Offline)';
+    function initMainMap(lat, lon, isBike) {
+      if (!mainMap) {
+        mainMap = L.map('map').setView([lat || 21.0285, lon || 105.8542], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(mainMap);
       } else {
-        btn.classList.remove('offline');
-        btn.classList.add('online');
-        btn.innerText = 'Trực tuyến';
-        loadAvailableJobs();
+        mainMap.setView([lat || 21.0285, lon || 105.8542], 15);
       }
+
+      if (driverMarker) mainMap.removeLayer(driverMarker);
+      driverMarker = L.marker([lat, lon], {
+        icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-driver">${isBike ? '🛵' : '🚗'}</div>` })
+      }).addTo(mainMap).bindPopup(`<b>Vị trí của bạn:</b> ${state.driver.name}`).openPopup();
+
+      setTimeout(() => mainMap.invalidateSize(), 200);
     }
 
+    // =========================================================================
+    // 2. LẤY DANH SÁCH CUỐC XE KHẢ DỤNG (LỌC THEO PHƯƠNG TIỆN XE MÁY VS Ô TÔ)
+    // =========================================================================
     async function loadAvailableJobs() {
       if (!state.driver) return;
       try {
         const res = await fetch(`/api/driver/${state.driver.driver_id}/available-trips`);
         const data = await res.json();
-        renderJobList(data.trips || []);
-      } catch (e) {}
+        let trips = data.trips || [];
+
+        // Đảm bảo lọc phương tiện chuẩn xác: Xe máy chỉ hiện xe máy, Ô tô chỉ hiện ô tô
+        const isBikeDriver = (state.driver.vehicle_type || '').toLowerCase().includes('bike') || 
+                             (state.driver.vehicle_type || '').toLowerCase().includes('motor');
+        
+        trips = trips.filter(t => {
+          const isBikeTrip = (t.service_type === 'grab_bike');
+          return isBikeDriver ? isBikeTrip : !isBikeTrip;
+        });
+
+        renderJobList(trips);
+      } catch (e) {
+        console.error("Lỗi lấy danh sách cuốc:", e);
+      }
     }
 
     function renderJobList(trips) {
-      const list = document.getElementById('jobList');
-      document.getElementById('jobCount').innerText = trips.length;
+      const container = document.getElementById('jobList');
+      const countEl = document.getElementById('jobCount');
+      countEl.innerText = trips.length;
 
       if (trips.length === 0) {
-        list.innerHTML = `
-          <div style="text-align:center; padding:50px 20px; color:var(--text-muted);">
-            <div style="font-size:32px;">☕</div>
-            <div style="margin-top:10px; font-size:13px;">Chưa có cuốc xe mới trong khu vực Hoàn Kiếm. Khi khách đặt xe, hệ thống sẽ phát âm thanh và hiển thị ngay tại đây!</div>
+        container.innerHTML = `
+          <div style="text-align:center; padding:40px 20px; color:var(--text-muted);">
+            <div style="font-size:36px; margin-bottom:8px;">☕</div>
+            <div style="font-size:14px; font-weight:700;">Chưa có cuốc xe mới phù hợp</div>
+            <div style="font-size:11px; margin-top:4px;">Hệ thống sẽ tự động quét và phát chuông báo khi có khách đặt xe...</div>
           </div>
         `;
         return;
       }
 
-      list.innerHTML = '';
-      trips.forEach(t => {
+      container.innerHTML = '';
+      trips.forEach(job => {
+        const isBikeTrip = job.service_type === 'grab_bike';
         const card = document.createElement('div');
         card.className = 'job-card';
-        card.onclick = () => openJobDetail(t);
+        card.onclick = () => showJobDetail(job);
+
         card.innerHTML = `
           <div class="job-card-top">
             <div>
-              <span class="job-service-tag">${t.service_name}</span>
-              <div class="job-fare" style="margin-top:4px;">${t.estimated_price_vnd.toLocaleString()} đ</div>
+              <span class="job-service-tag">${isBikeTrip ? '🛵 GrabBike' : '🚗 ' + (job.service_name || 'GrabCar')}</span>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
+                Đón cách: <strong>${Math.round(job.distance_to_pickup_m)} m</strong> (~${job.pickup_eta_minutes} phút)
+              </div>
             </div>
-            <div style="text-align:right;">
-              <div style="font-size:11px; color:var(--text-muted);">Đón cách bạn</div>
-              <div style="font-size:13px; font-weight:700; color:#fff;">${t.distance_to_pickup_m} m (${t.pickup_eta_minutes}p)</div>
+            <div class="job-fare">${(job.estimated_price_vnd || 0).toLocaleString()} đ</div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; margin-top:4px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span>🟢</span>
+              <span style="font-weight:700; color:#fff;">${job.origin_address}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span>🔴</span>
+              <span style="color:var(--text-muted);">${job.destination_address}</span>
             </div>
           </div>
-          <div style="font-size:12px; color:#CBD5E1; line-height:1.4;">
-            <div>🟢 <strong>Đón:</strong> ${t.origin_address}</div>
-            <div style="margin-top:2px;">🔴 <strong>Trả:</strong> ${t.destination_address} (${t.trip_distance_km} km)</div>
-          </div>
-          <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
-            <span>Khách: <strong>${t.customer_name}</strong></span>
-            <span>Chờ: ${t.wait_seconds_elapsed}s (Hủy sau ${t.seconds_until_auto_cancel}s)</span>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border-dark); padding-top:6px;">
+            <span>Khách: <strong>${job.customer_name}</strong></span>
+            <span style="color:var(--grab-yellow); font-weight:700;">⏱️ Còn ${job.seconds_until_auto_cancel}s</span>
           </div>
         `;
-        list.appendChild(card);
+        container.appendChild(card);
       });
     }
 
-    function openJobDetail(job) {
+    // =========================================================================
+    // 3. XEM CHI TIẾT CUỐC XE & LỰA CHỌN CHẤP NHẬN / TỪ CHỐI
+    // =========================================================================
+    function showJobDetail(job) {
       state.selectedJob = job;
-      document.getElementById('jobFeedSection').style.display = 'none';
-      const detail = document.getElementById('jobDetailSection');
-      detail.style.display = 'flex';
 
-      document.getElementById('mdlServiceTag').innerText = job.service_name;
-      document.getElementById('mdlFare').innerText = `${job.estimated_price_vnd.toLocaleString()} đ`;
-      document.getElementById('mdlDistanceEta').innerText = `${job.distance_to_pickup_m} m (${job.pickup_eta_minutes} phút)`;
+      document.getElementById('jobFeedSection').style.display = 'none';
+      document.getElementById('jobDetailSection').style.display = 'flex';
+
+      const isBike = job.service_type === 'grab_bike';
+      document.getElementById('mdlServiceTag').innerText = isBike ? '🛵 GrabBike' : '🚗 ' + (job.service_name || 'GrabCar');
+      document.getElementById('mdlFare').innerText = (job.estimated_price_vnd || 0).toLocaleString() + ' đ';
+      document.getElementById('mdlDistanceEta').innerText = `${Math.round(job.distance_to_pickup_m)} m (~${job.pickup_eta_minutes} phút)`;
+
       document.getElementById('mdlCustName').innerText = job.customer_name;
       document.getElementById('mdlCustPhone').innerText = job.customer_phone;
       document.getElementById('mdlPickup').innerText = job.origin_address;
@@ -726,30 +861,35 @@
     }
 
     function initMiniMap(job) {
-      const container = document.getElementById('mini-map');
       if (!miniMap) {
-        miniMap = L.map(container, { zoomControl: false }).setView([job.origin_lat, job.origin_lon], 14);
+        miniMap = L.map('mini-map', { zoomControl: false, attributionControl: false }).setView([job.origin_lat, job.origin_lon], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap);
       } else {
-        miniMap.invalidateSize();
+        miniMap.setView([job.origin_lat, job.origin_lon], 14);
       }
 
       if (miniPickupMarker) miniMap.removeLayer(miniPickupMarker);
       if (miniDropoffMarker) miniMap.removeLayer(miniDropoffMarker);
       if (miniRouteLayer) miniMap.removeLayer(miniRouteLayer);
 
-      miniPickupMarker = L.marker([job.origin_lat, job.origin_lon]).addTo(miniMap);
-      miniDropoffMarker = L.marker([job.destination_lat, job.destination_lon]).addTo(miniMap);
+      miniPickupMarker = L.marker([job.origin_lat, job.origin_lon], {
+        icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-pickup" style="width:24px;height:24px;font-size:12px;">🟢</div>` })
+      }).addTo(miniMap);
 
-      if (job.route_coords && job.route_coords.length > 1) {
+      miniDropoffMarker = L.marker([job.destination_lat, job.destination_lon], {
+        icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-dropoff" style="width:24px;height:24px;font-size:12px;">🔴</div>` })
+      }).addTo(miniMap);
+
+      if (job.route_coords && job.route_coords.length > 0) {
         miniRouteLayer = L.polyline(job.route_coords, { color: '#00B14F', weight: 4 }).addTo(miniMap);
-        miniMap.fitBounds(miniRouteLayer.getBounds(), { padding: [15, 15] });
+        miniMap.fitBounds(miniRouteLayer.getBounds(), { padding: [20, 20] });
       }
+
+      setTimeout(() => miniMap.invalidateSize(), 150);
     }
 
-    // TÀI XẾ TỪ CHỐI / BỎ QUA CUỐC
     async function declineJob() {
-      if (!state.selectedJob) return;
+      if (!state.selectedJob || !state.driver) return;
       try {
         await fetch('/api/driver/decision', {
           method: 'POST',
@@ -760,65 +900,89 @@
             decision: 'decline'
           })
         });
-        document.getElementById('jobDetailSection').style.display = 'none';
-        document.getElementById('jobFeedSection').style.display = 'flex';
-        state.selectedJob = null;
-        loadAvailableJobs();
-      } catch (e) {
-        alert('Lỗi gửi từ chối');
-      }
+      } catch (e) {}
+
+      document.getElementById('jobDetailSection').style.display = 'none';
+      document.getElementById('jobFeedSection').style.display = 'flex';
+      state.selectedJob = null;
+      loadAvailableJobs();
     }
 
-    // TÀI XẾ CHẤP NHẬN NHẬN CUỐC
     async function acceptJob() {
-      if (!state.selectedJob) return;
-      const job = state.selectedJob;
-
+      if (!state.selectedJob || !state.driver) return;
       try {
         const res = await fetch('/api/driver/decision', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             driver_id: state.driver.driver_id,
-            booking_id: job.booking_id,
+            booking_id: state.selectedJob.booking_id,
             decision: 'accept'
           })
         });
         const data = await res.json();
-        if (data.status === 'ok') {
-          playNotificationSound();
-          state.activeBookingId = job.booking_id;
-          state.activeBooking = job;
 
+        // Server /api/driver/decision trả về { status, booking_id, trip_status, driver_id }
+        // KHÔNG có "booking" object đầy đủ → dùng state.selectedJob cho thông tin chi tiết
+        if (data.booking_id || data.status === 'ok') {
+          const job = state.selectedJob; // Dữ liệu đầy đủ của chuyến đã chọn
+          state.activeBooking = job;
+          state.activeBookingId = data.booking_id || job.booking_id;
+
+          // Chuyển sang Màn hình Điều hướng (HUD)
           document.getElementById('jobDetailSection').style.display = 'none';
+          document.getElementById('jobFeedSection').style.display = 'none';
           document.getElementById('navigationSection').style.display = 'flex';
 
+          document.getElementById('navStatusBadge').innerText = 'ĐANG ĐẾN ĐIỂM ĐÓN';
+          document.getElementById('navFare').innerText = (job.estimated_price_vnd || 0).toLocaleString() + ' đ';
           document.getElementById('navCustName').innerText = `Khách: ${job.customer_name}`;
           document.getElementById('navCustPhone').innerText = job.customer_phone;
           document.getElementById('navPickup').innerText = job.origin_address;
           document.getElementById('navDropoff').innerText = job.destination_address;
-          document.getElementById('navFare').innerText = `${job.estimated_price_vnd.toLocaleString()} đ`;
 
-          if (routeLayer) mainMap.removeLayer(routeLayer);
-          if (job.route_coords) {
-            routeLayer = L.polyline(job.route_coords, { color: '#00B14F', weight: 6 }).addTo(mainMap);
-            mainMap.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
-          }
+          document.getElementById('btnArrived').style.display = 'flex';
+          document.getElementById('btnStartTrip').style.display = 'none';
+          document.getElementById('btnFinishTrip').style.display = 'none';
+
+          // Vẽ lộ trình trên bản đồ lớn (dùng job từ feed, field là route_coords)
+          renderActiveTripOnMainMap(job);
         } else {
-          alert('Không thể nhận cuốc: ' + (data.error || 'Cuốc có thể đã được tài xế khác nhận'));
-          document.getElementById('jobDetailSection').style.display = 'none';
-          document.getElementById('jobFeedSection').style.display = 'flex';
-          loadAvailableJobs();
+          alert("Không thể nhận cuốc: " + (data.error || "Cuốc đã bị nhận hoặc quá hạn"));
+          declineJob();
         }
       } catch (e) {
-        alert('Lỗi kết nối khi nhận cuốc');
+        alert("Lỗi kết nối máy chủ: " + e.message);
       }
     }
 
-    // TIẾN TRÌNH CHUYẾN ĐI
-    async function triggerTripAction(action) {
-      if (!state.activeBookingId) return;
+    function renderActiveTripOnMainMap(b) {
+      if (!mainMap) return;
+      if (routeLayer) mainMap.removeLayer(routeLayer);
 
+      L.marker([b.origin_lat, b.origin_lon], {
+        icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-pickup">🟢</div>` })
+      }).addTo(mainMap).bindPopup(`Điểm đón: ${b.origin_address}`).openPopup();
+
+      L.marker([b.destination_lat, b.destination_lon], {
+        icon: L.divIcon({ className: 'custom-div-icon', html: `<div class="marker-pin pin-dropoff">🔴</div>` })
+      }).addTo(mainMap).bindPopup(`Điểm trả: ${b.destination_address}`);
+
+      // Job feed dùng "route_coords", booking object dùng "trip_route_coords" — xử lý cả hai
+      const coords = b.route_coords || b.trip_route_coords;
+      if (coords && coords.length > 0) {
+        routeLayer = L.polyline(coords, { color: '#3B82F6', weight: 5 }).addTo(mainMap);
+        mainMap.fitBounds(routeLayer.getBounds(), { padding: [60, 60] });
+      } else if (b.origin_lat && b.destination_lat) {
+        mainMap.fitBounds([[b.origin_lat, b.origin_lon], [b.destination_lat, b.destination_lon]], { padding: [60, 60] });
+      }
+    }
+
+    // =========================================================================
+    // 4. TIẾN TRÌNH CHUYẾN ĐI (ĐẾN ĐIỂM ĐÓN -> BẮT ĐẦU -> HOÀN THÀNH)
+    // =========================================================================
+    async function triggerTripAction(action) {
+      if (!state.activeBookingId || !state.driver) return;
       try {
         const res = await fetch('/api/driver/trip-action', {
           method: 'POST',
@@ -830,30 +994,90 @@
           })
         });
         const data = await res.json();
-        if (data.status === 'ok') {
+
+        // Server /api/driver/trip-action trả về { status, action, booking_id, trip_status }
+        // KHÔNG có "booking" object đầy đủ → kiểm tra booking_id hoặc status
+        if (data.booking_id || data.status === 'ok') {
           if (action === 'arrived_pickup') {
             document.getElementById('navStatusBadge').innerText = 'ĐÃ ĐẾN ĐIỂM ĐÓN';
             document.getElementById('btnArrived').style.display = 'none';
-            document.getElementById('btnStartTrip').style.display = 'block';
+            document.getElementById('btnStartTrip').style.display = 'flex';
           } else if (action === 'start_trip') {
-            document.getElementById('navStatusBadge').innerText = 'ĐANG TRÊN ĐƯỜNG TRẢ KHÁCH';
+            document.getElementById('navStatusBadge').innerText = 'ĐANG CHỞ KHÁCH ĐẾN ĐIỂM TRẢ';
             document.getElementById('btnStartTrip').style.display = 'none';
-            document.getElementById('btnFinishTrip').style.display = 'block';
+            document.getElementById('btnFinishTrip').style.display = 'flex';
           } else if (action === 'complete_trip') {
-            alert('Chúc mừng bạn đã hoàn thành chuyến đi!');
+            alert("Chúc mừng bạn đã hoàn thành chuyến đi thành công!");
+            // Cập nhật thống kê thu nhập
+            const jobFare = state.activeBooking ? (state.activeBooking.estimated_price_vnd || 0) : 0;
+            state.driver.total_trips = (state.driver.total_trips || 0) + 1;
+            state.driver.total_income = (state.driver.total_income || 0) + jobFare;
+            document.getElementById('statIncome').innerText = `${state.driver.total_income.toLocaleString()} đ`;
+            document.getElementById('statTrips').innerText = state.driver.total_trips;
+
+            // Reset về Cửa sổ nhận cuốc
             document.getElementById('navigationSection').style.display = 'none';
             document.getElementById('jobFeedSection').style.display = 'flex';
-            document.getElementById('btnFinishTrip').style.display = 'none';
-            document.getElementById('btnArrived').style.display = 'block';
             state.activeBookingId = null;
-
-            initDriverSession();
+            state.activeBooking = null;
+            state.selectedJob = null;
             loadAvailableJobs();
           }
+        } else {
+          alert("Lỗi thực hiện hành động: " + (data.error || "Không thể cập nhật trạng thái"));
         }
       } catch (e) {
-        alert('Lỗi cập nhật tiến trình');
+        alert("Lỗi thực hiện hành động: " + e.message);
       }
+    }
+
+    function toggleOnline() {
+      state.isOnline = !state.isOnline;
+      const btn = document.getElementById('btnToggleOnline');
+      if (state.isOnline) {
+        btn.className = 'toggle-online-btn online';
+        btn.innerHTML = '<span>Trực tuyến</span>';
+        loadAvailableJobs();
+      } else {
+        btn.className = 'toggle-online-btn offline';
+        btn.innerHTML = '<span>Tạm nghỉ</span>';
+      }
+    }
+
+    // =========================================================================
+    // 5. WEBSOCKET KẾT NỐI REAL-TIME VỚI SERVER
+    // =========================================================================
+    function connectWS() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/portal`;
+      const ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          // Có cuốc xe mới xuất hiện trong hệ thống
+          if (msg.type === 'event_booking_created') {
+            const isBikeDriver = (state.driver && state.driver.vehicle_type || '').includes('bike');
+            const isBikeTrip = (msg.booking && msg.booking.service_type === 'grab_bike');
+            // Chỉ phát chuông nếu chuyến đi trùng loại phương tiện của tài xế
+            if (isBikeDriver === isBikeTrip) {
+              playNotificationSound();
+            }
+            if (state.isOnline && !state.activeBookingId) {
+              loadAvailableJobs();
+            }
+          }
+          if (msg.type === 'event_booking_timeout' || msg.type === 'event_trip_cancelled') {
+            if (state.isOnline && !state.activeBookingId) {
+              loadAvailableJobs();
+            }
+          }
+        } catch (e) {}
+      };
+
+      ws.onclose = () => {
+        setTimeout(connectWS, 3000);
+      };
     }
   </script>
 </body>
