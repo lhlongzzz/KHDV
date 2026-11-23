@@ -244,7 +244,7 @@ class BookingService:
         is_motorcycle_driver = False
         if driver:
             v_type = (driver.vehicle_type or "").lower()
-            if any(k in v_type for k in ["bike", "motorcycle", "xe_may", "moto"]):
+            if any(k in v_type for k in ["bike", "motorcycle", "xe_may", "moto", "xe máy", "xe_om", "xe ôm", "om"]):
                 is_motorcycle_driver = True
             else:
                 is_motorcycle_driver = False

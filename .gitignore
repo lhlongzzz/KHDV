@@ -24,3 +24,9 @@ simulation_map*.html
 # 5. Cấu hình IDE / Editor
 .vscode/
 .idea/
+
+.agent/
+
+__pycache__/
+.pytest_cache/
+.env.example

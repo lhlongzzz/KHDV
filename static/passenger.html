@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Grab Passenger - Đặt xe Hà Nội</title>
+  <title>UETransport Passenger - Đặt xe Hà Nội</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -120,6 +120,10 @@
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(12px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
 
     .card-badge {
@@ -414,7 +418,7 @@
   <!-- HEADER -->
   <header id="header">
     <div class="brand-wrap">
-      <div class="grab-badge">Grab</div>
+      <div class="grab-badge">UETransport</div>
       <div class="brand-text">
         <h1>Khách hàng Đặt xe (Passenger)</h1>
         <p>Hà Nội &bull; Kiến trúc SOA &bull; Bản đồ số OpenStreetMap</p>
@@ -485,11 +489,11 @@
 
       <!-- CHỌN LOẠI XE -->
       <div class="form-group">
-        <label class="form-label">1. Chọn loại xe Grab:</label>
+        <label class="form-label">1. Chọn loại xe UETransport:</label>
         <div class="service-grid">
           <div class="service-card selected" id="sc_grab_car" onclick="selectService('grab_car')">
             <div class="service-top">
-              <span class="service-title">GrabCar</span>
+              <span class="service-title">UETransportCar</span>
               <span class="service-icon">🚗</span>
             </div>
             <div class="service-desc">Ô tô 4 chỗ &bull; Tiêu chuẩn</div>
@@ -498,7 +502,7 @@
 
           <div class="service-card" id="sc_grab_bike" onclick="selectService('grab_bike')">
             <div class="service-top">
-              <span class="service-title">GrabBike</span>
+              <span class="service-title">UETransportBike</span>
               <span class="service-icon">🛵</span>
             </div>
             <div class="service-desc">Xe máy &bull; Nhanh chóng</div>
@@ -507,7 +511,7 @@
 
           <div class="service-card" id="sc_grab_car_plus" onclick="selectService('grab_car_plus')">
             <div class="service-top">
-              <span class="service-title">GrabCar Plus</span>
+              <span class="service-title">UETransportCar Plus</span>
               <span class="service-icon">🚙</span>
             </div>
             <div class="service-desc">Xe cao cấp &bull; Tài xế 5 sao</div>
@@ -516,7 +520,7 @@
 
           <div class="service-card" id="sc_grab_car_share" onclick="selectService('grab_car_share')">
             <div class="service-top">
-              <span class="service-title">GrabCar Share</span>
+              <span class="service-title">UETransportCar Share</span>
               <span class="service-icon">👥</span>
             </div>
             <div class="service-desc">Ghép chuyến &bull; Giảm 25%</div>
@@ -543,7 +547,7 @@
       <!-- BẢNG ƯỚC TÍNH CƯỚC PHÍ & LỘ TRÌNH -->
       <div class="estimate-box" id="estimateBox">
         <div class="estimate-info">
-          <div class="estimate-title" id="estTitle">GrabCar 4 chỗ</div>
+          <div class="estimate-title" id="estTitle">UETransportCar 4 chỗ</div>
           <div class="estimate-meta" id="estMeta">Quãng đường: ~1.8 km &bull; Thời gian: ~4 phút</div>
         </div>
         <div class="estimate-total" id="estPrice">25.000 đ</div>
@@ -604,12 +608,20 @@
             <div style="font-size:11px; color:var(--grab-text-muted);">Giá cước chuyến đi</div>
             <div style="font-size:18px; font-weight:800; color:var(--grab-green-dark);" id="trackFare">25.000 đ</div>
           </div>
-          <div style="font-size:12px; font-weight:700; color:#475569;" id="trackServiceName">GrabCar</div>
+          <div style="font-size:12px; font-weight:700; color:#475569;" id="trackServiceName">UETransportCar</div>
         </div>
 
-        <button class="btn-secondary" style="color:var(--grab-red); border-color:#FECACA;" onclick="cancelBookingManual()">
-          <span>Hủy yêu cầu đặt xe</span>
-        </button>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button class="btn-primary" id="btnReloadStatus" style="width:100%; padding:12px; font-size:14px; background:var(--grab-green);" onclick="checkBookingStatus(true)">
+            <span id="reloadIcon" style="display:inline-block;">🔄</span> <span id="reloadText">Kiểm tra tài xế nhận cuốc (Làm mới)</span>
+          </button>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:0 4px;">
+            <span style="font-size:11px; color:var(--grab-green-dark); font-weight:600;" id="realtimeLiveText">🟢 Đang đồng bộ thời gian thực (2s)</span>
+            <button class="btn-secondary" style="color:var(--grab-red); border-color:#FECACA; padding:6px 12px; font-size:12px;" onclick="cancelBookingManual()">
+              <span>Hủy chuyến</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- TRẠNG THÁI 2: TÀI XẾ ĐÃ NHẬN CUỐC / ĐANG DI CHUYỂN -->
@@ -662,7 +674,7 @@
       <div id="stateFinished" style="display:none; flex-direction:column; gap:16px; text-align:center; padding-top:10px;">
         <div style="font-size:48px;" id="finishIcon">🎉</div>
         <div style="font-size:18px; font-weight:800; color:var(--grab-text-primary);" id="finishTitle">Chuyến đi đã hoàn thành!</div>
-        <div style="font-size:13px; color:var(--grab-text-muted);" id="finishDesc">Cảm ơn bạn đã sử dụng dịch vụ của Grab. Chúc bạn một ngày tốt lành!</div>
+        <div style="font-size:13px; color:var(--grab-text-muted);" id="finishDesc">Cảm ơn bạn đã sử dụng dịch vụ của UETransport. Chúc bạn một ngày tốt lành!</div>
         
         <button class="btn-primary" onclick="startNewBookingFlow()">
           <span>Đặt chuyến xe mới</span>
@@ -700,6 +712,7 @@
     let dropoffMarker = null;
     let routeLine = null;
     let driverMarker = null;
+    let statusPollingTimer = null;
 
     window.addEventListener('DOMContentLoaded', async () => {
       await loadLandmarks();
@@ -911,7 +924,7 @@
           document.getElementById('trackDropoffName').innerText = dName;
           document.getElementById('trackDropoffDetail').innerText = state.dropoffLandmark ? state.dropoffLandmark.address : '';
           document.getElementById('trackFare').innerText = (booking.estimated_price_vnd || 25000).toLocaleString() + ' đ';
-          document.getElementById('trackServiceName').innerText = booking.service_name || 'GrabCar';
+          document.getElementById('trackServiceName').innerText = booking.service_name || 'UETransportCar';
 
           document.getElementById('stateWaiting').style.display = 'flex';
           document.getElementById('stateMatched').style.display = 'none';
@@ -919,6 +932,16 @@
 
           // Bắt đầu đếm ngược 5 phút tự động hủy
           startCountdown(300);
+
+          // Bắt đầu đồng bộ tự động 2s một lần để đảm bảo thời gian thực
+          clearInterval(statusPollingTimer);
+          statusPollingTimer = setInterval(() => {
+            if (state.activeBookingId && document.getElementById('stateWaiting').style.display !== 'none') {
+              checkBookingStatus(false);
+            } else {
+              clearInterval(statusPollingTimer);
+            }
+          }, 2000);
 
           // Vẽ lộ trình trên bản đồ bên cạnh (truyền booking object đã extract)
           renderTripOnMap(booking);
@@ -1015,6 +1038,7 @@
     }
 
     function handleTripTimedOut() {
+      clearInterval(statusPollingTimer);
       document.getElementById('stateWaiting').style.display = 'none';
       document.getElementById('stateMatched').style.display = 'none';
       document.getElementById('stateFinished').style.display = 'flex';
@@ -1027,6 +1051,7 @@
     async function cancelBookingManual() {
       if (!confirm("Bạn có chắc chắn muốn hủy chuyến xe này?")) return;
       clearInterval(state.countdownTimer);
+      clearInterval(statusPollingTimer);
       
       document.getElementById('stateWaiting').style.display = 'none';
       document.getElementById('stateMatched').style.display = 'none';
@@ -1039,6 +1064,7 @@
 
     function startNewBookingFlow() {
       clearInterval(state.countdownTimer);
+      clearInterval(statusPollingTimer);
       state.activeBookingId = null;
       state.activeBooking = null;
 
@@ -1047,6 +1073,58 @@
       document.getElementById('btnConfirmBook').disabled = false;
       document.getElementById('btnConfirmBook').innerText = "XÁC NHẬN ĐẶT CHUYẾN";
       onLocationChange();
+    }
+
+    // =========================================================================
+    // 6.1 KIỂM TRA TRẠNG THÁI CUỐC XE THEO THỜI GIAN THỰC & NÚT LÀM MỚI
+    // =========================================================================
+    async function checkBookingStatus(isManual = false) {
+      if (!state.activeBookingId) return;
+
+      const icon = document.getElementById('reloadIcon');
+      const text = document.getElementById('reloadText');
+      if (isManual && icon && text) {
+        icon.style.animation = 'spin 0.6s linear infinite';
+        text.innerText = 'Đang kiểm tra...';
+      }
+
+      try {
+        const res = await fetch(`/api/trip/${state.activeBookingId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.status === 'MATCHED' || data.status === 'PICKING_UP' || data.status === 'IN_TRANSIT') {
+          clearInterval(state.countdownTimer);
+          clearInterval(statusPollingTimer);
+          onDriverMatched({
+            booking_id: data.booking_id,
+            driver: data.driver,
+            trip_status: data.status,
+            trip_route_coords: data.trip_route_coords,
+            pickup_route_coords: data.pickup_route_coords,
+          });
+        } else if (data.status === 'COMPLETED') {
+          clearInterval(state.countdownTimer);
+          clearInterval(statusPollingTimer);
+          document.getElementById('stateWaiting').style.display = 'none';
+          document.getElementById('stateMatched').style.display = 'none';
+          document.getElementById('stateFinished').style.display = 'flex';
+          document.getElementById('finishIcon').innerText = '🎉';
+          document.getElementById('finishTitle').innerText = 'Chuyến đi hoàn thành!';
+          document.getElementById('finishDesc').innerText = 'Cảm ơn bạn đã lựa chọn UETransport. Chúc bạn một ngày tốt lành!';
+        } else if (data.status === 'CANCELLED') {
+          clearInterval(state.countdownTimer);
+          clearInterval(statusPollingTimer);
+          handleTripTimedOut();
+        }
+      } catch (err) {
+        console.error("Lỗi cập nhật trạng thái chuyến:", err);
+      } finally {
+        if (isManual && icon && text) {
+          icon.style.animation = 'none';
+          text.innerText = 'Kiểm tra tài xế nhận cuốc (Làm mới)';
+        }
+      }
     }
 
     // =========================================================================
@@ -1081,20 +1159,32 @@
     function handleSocketMessage(msg) {
       if (!state.activeBookingId) return;
 
-      // Tài xế nhận cuốc
-      if (msg.type === 'event_driver_accepted' && msg.booking_id === state.activeBookingId) {
+      // Tài xế nhận cuốc (nhận diện cả event_driver_accepted và portal_booking_matched)
+      if ((msg.type === 'event_driver_accepted' || msg.type === 'portal_booking_matched') && msg.booking_id === state.activeBookingId) {
         clearInterval(state.countdownTimer);
-        onDriverMatched(msg);
+        clearInterval(statusPollingTimer);
+        if (msg.driver) {
+          onDriverMatched(msg);
+        } else {
+          checkBookingStatus(false);
+        }
       }
 
-      // Cập nhật trạng thái cuốc xe
-      if (msg.type === 'event_trip_action' && msg.booking_id === state.activeBookingId) {
-        onTripActionUpdate(msg);
+      // Cập nhật trạng thái cuốc xe theo thời gian thực
+      if ((msg.type === 'event_trip_action' || msg.type === 'portal_booking_picked_up' || msg.type === 'portal_booking_completed') && msg.booking_id === state.activeBookingId) {
+        if (msg.type === 'portal_booking_picked_up') {
+          onTripActionUpdate({ action: 'start_trip' });
+        } else if (msg.type === 'portal_booking_completed') {
+          onTripActionUpdate({ action: 'complete_trip' });
+        } else {
+          onTripActionUpdate(msg);
+        }
       }
 
       // Hủy cuốc do quá giờ từ server
-      if (msg.type === 'event_booking_timeout' && msg.booking_id === state.activeBookingId) {
+      if ((msg.type === 'event_booking_timeout' || msg.type === 'portal_booking_cancelled') && msg.booking_id === state.activeBookingId) {
         clearInterval(state.countdownTimer);
+        clearInterval(statusPollingTimer);
         handleTripTimedOut();
       }
     }
@@ -1107,7 +1197,7 @@
       const d = data.driver || {};
       const isBike = (d.vehicle_type || '').includes('bike') || (d.vehicle_type || '').includes('motor');
       document.getElementById('drvAvatar').innerText = isBike ? '🛵' : '🚗';
-      document.getElementById('drvName').innerText = d.name || 'Tài xế Grab';
+      document.getElementById('drvName').innerText = d.name || 'Tài xế UETransport';
       document.getElementById('drvPhone').innerText = d.phone || '0912 345 678';
       document.getElementById('drvRating').innerText = d.rating || '4.95';
       document.getElementById('drvPlate').innerText = d.vehicle_plate || '29A-888.88';

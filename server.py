@@ -117,14 +117,57 @@ async def lifespan(app: FastAPI):
 
         # Đăng ký đồng bộ sự kiện Booking Service tới WebSocket Client thời gian thực
         def _on_booking_created(b):
-            send_ws_event({"type": "portal_booking_created", "booking_id": b.booking_id, "customer_name": b.customer.name})
+            event_data = {
+                "type": "event_booking_created",
+                "booking_id": b.booking_id,
+                "service_type": b.service_type,
+                "service_name": b.service_name,
+                "customer_name": b.customer.name,
+                "origin_address": b.origin_address,
+                "destination_address": b.destination_address,
+                "estimated_price_vnd": b.estimated_price_vnd,
+            }
+            send_ws_event(event_data)
+            send_ws_event({"type": "portal_booking_created", **event_data})
+
         def _on_booking_matched(b):
-            send_ws_event({"type": "portal_booking_matched", "booking_id": b.booking_id, "driver_id": b.driver.driver_id if b.driver else None})
+            driver_info = {
+                "driver_id": b.driver.driver_id,
+                "name": b.driver.name,
+                "phone": b.driver.phone,
+                "vehicle_type": b.driver.vehicle_type,
+                "vehicle_plate": b.driver.vehicle_plate,
+                "vehicle_model": b.driver.vehicle_model,
+                "rating": b.driver.rating,
+                "current_lat": b.current_driver_lat or (b.driver.current_lat if b.driver else None),
+                "current_lon": b.current_driver_lon or (b.driver.current_lon if b.driver else None),
+            } if b.driver else None
+            # Gửi cho cả passenger.html và portal.html
+            send_ws_event({
+                "type": "event_driver_accepted",
+                "booking_id": b.booking_id,
+                "status": b.status.value,
+                "driver": driver_info,
+                "pickup_route_coords": b.pickup_route_coords,
+                "trip_route_coords": b.trip_route_coords,
+            })
+            send_ws_event({
+                "type": "portal_booking_matched",
+                "booking_id": b.booking_id,
+                "driver_id": b.driver.driver_id if b.driver else None,
+                "driver": driver_info,
+            })
+
         def _on_booking_picked_up(b):
+            send_ws_event({"type": "event_trip_action", "booking_id": b.booking_id, "action": "start_trip", "trip_status": b.status.value})
             send_ws_event({"type": "portal_booking_picked_up", "booking_id": b.booking_id})
+
         def _on_booking_completed(b):
+            send_ws_event({"type": "event_trip_action", "booking_id": b.booking_id, "action": "complete_trip", "trip_status": b.status.value})
             send_ws_event({"type": "portal_booking_completed", "booking_id": b.booking_id})
+
         def _on_booking_cancelled(b):
+            send_ws_event({"type": "event_booking_timeout", "booking_id": b.booking_id, "reason": b.cancel_reason})
             send_ws_event({"type": "portal_booking_cancelled", "booking_id": b.booking_id, "reason": b.cancel_reason})
 
         event_bus.subscribe(EventType.REQUEST_CREATED, _on_booking_created)
@@ -695,6 +738,8 @@ async def get_trip_details_api(booking_id: str):
             "vehicle_plate": b.driver.vehicle_plate,
             "vehicle_model": b.driver.vehicle_model,
             "rating": b.driver.rating,
+            "current_lat": b.current_driver_lat or (b.driver.current_lat if b.driver else None),
+            "current_lon": b.current_driver_lon or (b.driver.current_lon if b.driver else None),
         } if b.driver else None,
         "service_type": b.service_type,
         "service_name": b.service_name,
@@ -757,6 +802,14 @@ async def driver_trip_action_api(payload: dict):
     if not res.success or not res.data:
         return JSONResponse({"error": res.error}, status_code=400)
     b = res.data
+
+    send_ws_event({
+        "type": "event_trip_action",
+        "booking_id": b.booking_id,
+        "action": action,
+        "trip_status": b.status.value,
+    })
+
     return {
         "status": "ok",
         "action": action,

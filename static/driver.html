@@ -162,7 +162,8 @@
       display: flex;
       flex-direction: column;
       z-index: 10;
-      overflow-y: auto;
+      overflow: hidden;
+      height: 100%;
     }
 
     #map-container {
@@ -232,34 +233,95 @@
 
     /* JOB FEED LIST */
     .job-feed-header {
-      padding: 14px 20px 8px;
+      padding: 12px 18px 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
     }
-    .job-feed-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .job-feed-title { font-size: 13px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
+    .job-feed-badge {
+      background: var(--grab-green);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+    .btn-reload-feed {
+      background: rgba(0, 177, 79, 0.15);
+      color: var(--grab-green);
+      border: 1px solid rgba(0, 177, 79, 0.35);
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn-reload-feed:hover {
+      background: var(--grab-green);
+      color: #fff;
+    }
+    .btn-back-header {
+      background: rgba(255, 255, 255, 0.05);
+      color: #94A3B8;
+      border: 1px solid var(--border-dark);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn-back-header:hover {
+      color: #fff;
+      border-color: #64748B;
+      background: rgba(255, 255, 255, 0.1);
+    }
     .job-feed-scroll {
       flex: 1;
-      padding: 16px;
+      padding: 12px 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
       overflow-y: auto;
+      min-height: 0;
+    }
+    .job-feed-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .job-feed-scroll::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .job-feed-scroll::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    .job-feed-scroll::-webkit-scrollbar-thumb:hover {
+      background: var(--grab-green);
     }
     .job-card {
       background: var(--grab-dark-card);
       border: 1px solid var(--border-dark);
       border-radius: var(--radius-md);
-      padding: 16px;
+      padding: 12px 14px;
       cursor: pointer;
       transition: all 0.2s;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
+      flex-shrink: 0;
     }
-    .job-card:hover { border-color: var(--grab-green); transform: translateY(-2px); }
+    .job-card:hover { border-color: var(--grab-green); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
     .job-card-top { display: flex; justify-content: space-between; align-items: flex-start; }
-    .job-fare { font-size: 18px; font-weight: 800; color: var(--grab-green); }
+    .job-fare { font-size: 17px; font-weight: 800; color: var(--grab-green); }
     .job-service-tag {
       background: rgba(0, 177, 79, 0.2);
       color: var(--grab-green);
@@ -267,6 +329,11 @@
       font-weight: 700;
       padding: 3px 8px;
       border-radius: 6px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
 
     /* JOB DETAIL POPUP (ACCEPT OR DECLINE) */
@@ -419,7 +486,7 @@
       <div class="form-group">
         <label class="form-label">Loại xe đăng ký chạy *</label>
         <select id="inpDriverType" class="form-select" onchange="onDriverVehicleTypeChange()">
-          <option value="grab_bike">🛵 Xe máy (GrabBike)</option>
+          <option value="grab_bike">🛵 Xe máy (GrabBike / Xe ôm)</option>
           <option value="grab_car">🚗 Ô tô (GrabCar / Plus / Share)</option>
         </select>
       </div>
@@ -491,11 +558,15 @@
         </div>
 
         <!-- CỬA SỔ NHẬN CUỐC (JOB FEED) -->
-        <div id="jobFeedSection" style="display:flex; flex-direction:column; flex:1; overflow:hidden;">
+        <div id="jobFeedSection" style="display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
           <div class="job-feed-header">
-            <div class="job-feed-title">Cuốc xe có thể nhận (<span id="jobCount">0</span>)</div>
-            <button onclick="loadAvailableJobs()" style="background:transparent; border:none; color:var(--grab-green); font-size:12px; font-weight:700; cursor:pointer;">
-              🔄 Làm mới
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="job-feed-title">Cuốc xe có thể nhận</span>
+              <span class="job-feed-badge" id="jobCount">0</span>
+            </div>
+            <button class="btn-reload-feed" id="btnReloadFeed" onclick="manualReloadJobs()">
+              <span id="spinReloadIcon" style="display:inline-block;">🔄</span>
+              <span id="txtReloadFeed">Làm mới cuốc xe</span>
             </button>
           </div>
 
@@ -504,8 +575,16 @@
           </div>
         </div>
 
-        <!-- POPUP / THẺ CHI TIẾT CUỐC XE (CHẤP NHẬN HOẶC TỪ CHỐI) -->
-        <div id="jobDetailSection" class="detail-card" style="display:none;">
+        <!-- POPUP / THẺ CHI TIẾT CUỐC XE -->
+        <div id="jobDetailSection" class="detail-card" style="display:none; flex-direction:column; gap:12px;">
+          <!-- NÚT THOÁT ĐỂ SO SÁNH VỚI CÁC CUỐC KHÁC -->
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-dark); padding-bottom:8px;">
+            <button class="btn-back-header" onclick="closeJobDetail()">
+              <span>← Quay lại danh sách</span>
+            </button>
+            <span style="font-size:11px; color:var(--text-muted);">Cuốc vẫn giữ nguyên để so sánh</span>
+          </div>
+
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
               <span class="job-service-tag" id="mdlServiceTag">GrabBike</span>
@@ -539,10 +618,10 @@
             </div>
           </div>
 
-          <!-- 2 NÚT HÀNH ĐỘNG: TÀI XẾ LỰA CHỌN ĐÓN KHÁCH HOẶC KHÔNG -->
+          <!-- 2 NÚT HÀNH ĐỘNG: QUAY LẠI (VẪN GIỮ CUỐC ĐỂ SO SÁNH) HOẶC NHẬN CUỐC -->
           <div class="choice-actions">
-            <button class="btn-decline" onclick="declineJob()">
-              <span>❌ Bỏ qua / Từ chối</span>
+            <button class="btn-decline" onclick="closeJobDetail()" title="Quay lại danh sách cuốc để xem chuyến khác, cuốc vẫn được giữ lại">
+              <span>← Thoát / Để sau</span>
             </button>
             <button class="btn-accept" onclick="acceptJob()">
               <span>✅ NHẬN CUỐC NÀY</span>
@@ -769,9 +848,11 @@
         const data = await res.json();
         let trips = data.trips || [];
 
-        // Đảm bảo lọc phương tiện chuẩn xác: Xe máy chỉ hiện xe máy, Ô tô chỉ hiện ô tô
-        const isBikeDriver = (state.driver.vehicle_type || '').toLowerCase().includes('bike') || 
-                             (state.driver.vehicle_type || '').toLowerCase().includes('motor');
+        // Đảm bảo lọc phương tiện chuẩn xác:
+        // Xe máy: CHỈ hiển thị cuốc xe ôm (grab_bike)
+        // Ô tô: CHỈ hiển thị cuốc ô tô (grab_car, grab_car_plus, grab_car_share)
+        const vType = (state.driver.vehicle_type || '').toLowerCase();
+        const isBikeDriver = vType.includes('bike') || vType.includes('motor') || vType.includes('xe_may') || vType.includes('xe máy') || vType.includes('om');
         
         trips = trips.filter(t => {
           const isBikeTrip = (t.service_type === 'grab_bike');
@@ -782,6 +863,20 @@
       } catch (e) {
         console.error("Lỗi lấy danh sách cuốc:", e);
       }
+    }
+
+    async function manualReloadJobs() {
+      const icon = document.getElementById('spinReloadIcon');
+      const text = document.getElementById('txtReloadFeed');
+      if (icon) icon.style.animation = 'spin 0.6s linear infinite';
+      if (text) text.innerText = 'Đang tải...';
+
+      await loadAvailableJobs();
+
+      setTimeout(() => {
+        if (icon) icon.style.animation = 'none';
+        if (text) text.innerText = 'Làm mới cuốc xe';
+      }, 500);
     }
 
     function renderJobList(trips) {
@@ -888,24 +983,18 @@
       setTimeout(() => miniMap.invalidateSize(), 150);
     }
 
-    async function declineJob() {
-      if (!state.selectedJob || !state.driver) return;
-      try {
-        await fetch('/api/driver/decision', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            driver_id: state.driver.driver_id,
-            booking_id: state.selectedJob.booking_id,
-            decision: 'decline'
-          })
-        });
-      } catch (e) {}
-
+    function closeJobDetail() {
+      // Đóng cửa sổ chi tiết, quay lại danh sách cuốc xe
+      // Cuốc xe VẪN GIỮ NGUYÊN trong danh sách để tài xế có thể so sánh giữa các chuyến!
       document.getElementById('jobDetailSection').style.display = 'none';
       document.getElementById('jobFeedSection').style.display = 'flex';
       state.selectedJob = null;
       loadAvailableJobs();
+    }
+
+    async function declineJob() {
+      // Giữ hàm này tương thích, chuyển về hành vi đóng để không làm mất cuốc
+      closeJobDetail();
     }
 
     async function acceptJob() {
@@ -1055,20 +1144,27 @@
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          // Có cuốc xe mới xuất hiện trong hệ thống
-          if (msg.type === 'event_booking_created') {
-            const isBikeDriver = (state.driver && state.driver.vehicle_type || '').includes('bike');
-            const isBikeTrip = (msg.booking && msg.booking.service_type === 'grab_bike');
+          // Có cuốc xe mới xuất hiện trong hệ thống (nhận diện cả event_booking_created và portal_booking_created)
+          if (msg.type === 'event_booking_created' || msg.type === 'portal_booking_created') {
+            const vType = (state.driver && state.driver.vehicle_type || '').toLowerCase();
+            const isBikeDriver = vType.includes('bike') || vType.includes('motor') || vType.includes('xe_may') || vType.includes('xe máy') || vType.includes('om');
+            const tripType = msg.service_type || (msg.booking && msg.booking.service_type) || '';
+            const isBikeTrip = (tripType === 'grab_bike');
+
             // Chỉ phát chuông nếu chuyến đi trùng loại phương tiện của tài xế
-            if (isBikeDriver === isBikeTrip) {
+            if (isBikeDriver === isBikeTrip || !tripType) {
               playNotificationSound();
             }
-            if (state.isOnline && !state.activeBookingId) {
+            if (state.isOnline && !state.activeBookingId && document.getElementById('jobFeedSection').style.display !== 'none') {
               loadAvailableJobs();
             }
           }
-          if (msg.type === 'event_booking_timeout' || msg.type === 'event_trip_cancelled') {
-            if (state.isOnline && !state.activeBookingId) {
+
+          // Có cuốc bị huỷ hoặc đã có tài xế khác nhận cuốc
+          if (msg.type === 'event_booking_timeout' || msg.type === 'event_trip_cancelled' || 
+              msg.type === 'event_driver_accepted' || msg.type === 'portal_booking_matched' || 
+              msg.type === 'portal_booking_cancelled') {
+            if (state.isOnline && !state.activeBookingId && document.getElementById('jobFeedSection').style.display !== 'none') {
               loadAvailableJobs();
             }
           }
@@ -1079,6 +1175,13 @@
         setTimeout(connectWS, 3000);
       };
     }
+
+    // Tự động kiểm tra cuốc mới định kỳ mỗi 3 giây để cập nhật tức thời
+    setInterval(() => {
+      if (state.driver && state.isOnline && !state.activeBookingId && document.getElementById('jobFeedSection').style.display !== 'none') {
+        loadAvailableJobs();
+      }
+    }, 3000);
   </script>
 </body>
 </html>
