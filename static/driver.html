@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Grab Driver Partner - Cửa sổ Nhận cuốc</title>
+  <title>UETransport Driver Partner - Cửa sổ Nhận cuốc</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,20 +15,20 @@
 
   <style>
     :root {
-      --grab-green: #00B14F;
-      --grab-green-dark: #008B3E;
-      --grab-dark: #121820;
-      --grab-dark-card: #1C2430;
-      --grab-dark-sub: #252F3E;
-      --border-dark: rgba(255,255,255,0.1);
-      --text-light: #F8FAFC;
-      --text-muted: #94A3B8;
+      --grab-green: #192A63;
+      --grab-green-dark: #101E48;
+      --grab-dark: #F4F6FA;
+      --grab-dark-card: #FFFFFF;
+      --grab-dark-sub: #E9ECF5;
+      --border-dark: #DDE2EC;
+      --text-light: #192A63;
+      --text-muted: #475569;
       --grab-red: #EF4444;
       --grab-yellow: #F59E0B;
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 20px;
-      --shadow-lg: 0 16px 36px rgba(0,0,0,0.4);
+      --shadow-lg: 0 12px 28px rgba(25,42,99,0.12);
     }
 
     * { margin:0; padding:0; box-sizing:border-box; font-family: 'Public Sans', sans-serif; }
@@ -56,7 +56,7 @@
       border-radius: 6px;
       letter-spacing: -0.5px;
     }
-    .brand-text h1 { font-size: 15px; font-weight: 800; color: #fff; }
+    .brand-text h1 { font-size: 15px; font-weight: 800; color: var(--text-light); }
     .brand-text p { font-size: 11px; color: var(--text-muted); }
 
     .header-right { display: flex; align-items: center; gap: 12px; }
@@ -74,7 +74,7 @@
       gap: 6px;
       transition: all 0.2s;
     }
-    .nav-btn:hover { background: #334155; }
+    .nav-btn:hover { background: #E9ECF5; }
 
     /* =========================================================================
        MÀN HÌNH BAN ĐẦU: FORM NHẬP THÔNG TIN TÀI XẾ (CENTERED VIEWPORT)
@@ -85,7 +85,7 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
-      background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      background: var(--grab-dark);
       overflow-y: auto;
     }
 
@@ -111,7 +111,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(0, 177, 79, 0.15);
+      background: rgba(25, 42, 99, 0.15);
       color: var(--grab-green);
       font-size: 12px;
       font-weight: 800;
@@ -119,7 +119,7 @@
       border-radius: 20px;
       width: fit-content;
     }
-    .onboard-title { font-size: 22px; font-weight: 800; color: #fff; }
+    .onboard-title { font-size: 22px; font-weight: 800; color: var(--text-light); }
     .onboard-subtitle { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
 
     .form-group { display: flex; flex-direction: column; gap: 6px; }
@@ -129,8 +129,8 @@
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-dark);
       font-size: 14px;
-      background: var(--grab-dark);
-      color: #fff;
+      background: #FFFFFF;
+      color: var(--text-light);
       transition: border 0.2s;
     }
     .form-input:focus { outline: none; border-color: var(--grab-green); }
@@ -139,8 +139,8 @@
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-dark);
       font-size: 14px;
-      background: var(--grab-dark);
-      color: #fff;
+      background: #FFFFFF;
+      color: var(--text-light);
       cursor: pointer;
     }
     .form-select:focus { outline: none; border-color: var(--grab-green); }
@@ -169,7 +169,7 @@
     #map-container {
       flex: 1;
       position: relative;
-      background: #000;
+      background: var(--grab-dark);
     }
     #map { width: 100%; height: 100%; }
 
@@ -185,10 +185,10 @@
     .driver-profile { display: flex; align-items: center; gap: 12px; }
     .driver-avatar-circle {
       width: 44px; height: 44px; border-radius: 50%;
-      background: #334155; display: flex; align-items: center; justify-content: center;
+      background: #E9ECF5; display: flex; align-items: center; justify-content: center;
       font-size: 22px; border: 2px solid var(--grab-green);
     }
-    .driver-title { font-size: 15px; font-weight: 800; color: #fff; }
+    .driver-title { font-size: 15px; font-weight: 800; color: var(--text-light); }
     .driver-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
     .toggle-online-btn {
@@ -204,25 +204,25 @@
       transition: all 0.2s;
     }
     .toggle-online-btn.online { background: var(--grab-green); color: #fff; }
-    .toggle-online-btn.offline { background: #475569; color: #CBD5E1; }
+    .toggle-online-btn.offline { background: #E9ECF5; color: #334155; border: 1px solid #CBD3E1; }
 
     /* SHIFT STATS */
     .shift-stats {
       display: grid;
       grid-template-columns: 1fr 1fr;
       padding: 12px 20px;
-      background: rgba(0,0,0,0.25);
+      background: var(--grab-dark-sub);
       border-bottom: 1px solid var(--border-dark);
     }
     .stat-col { text-align: center; }
-    .stat-value { font-size: 18px; font-weight: 800; color: #fff; }
+    .stat-value { font-size: 18px; font-weight: 800; color: var(--text-light); }
     .stat-label { font-size: 11px; color: var(--text-muted); }
 
     /* FILTER VEHICLE BADGE */
     .filter-vehicle-notice {
       padding: 8px 18px;
-      background: rgba(0, 177, 79, 0.12);
-      border-bottom: 1px solid rgba(0, 177, 79, 0.25);
+      background: rgba(25, 42, 99, 0.12);
+      border-bottom: 1px solid rgba(25, 42, 99, 0.25);
       font-size: 11px;
       font-weight: 700;
       color: var(--grab-green);
@@ -237,9 +237,9 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid var(--border-dark);
     }
-    .job-feed-title { font-size: 13px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.5px; }
+    .job-feed-title { font-size: 13px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
     .job-feed-badge {
       background: var(--grab-green);
       color: #fff;
@@ -249,9 +249,9 @@
       border-radius: 12px;
     }
     .btn-reload-feed {
-      background: rgba(0, 177, 79, 0.15);
+      background: rgba(25, 42, 99, 0.15);
       color: var(--grab-green);
-      border: 1px solid rgba(0, 177, 79, 0.35);
+      border: 1px solid rgba(25, 42, 99, 0.35);
       padding: 5px 12px;
       border-radius: 8px;
       font-size: 12px;
@@ -267,8 +267,8 @@
       color: #fff;
     }
     .btn-back-header {
-      background: rgba(255, 255, 255, 0.05);
-      color: #94A3B8;
+      background: #E9ECF5;
+      color: #334155;
       border: 1px solid var(--border-dark);
       padding: 6px 12px;
       border-radius: 8px;
@@ -281,9 +281,9 @@
       transition: all 0.2s;
     }
     .btn-back-header:hover {
-      color: #fff;
-      border-color: #64748B;
-      background: rgba(255, 255, 255, 0.1);
+      color: #192A63;
+      border-color: #94A3B8;
+      background: #DDE2EC;
     }
     .job-feed-scroll {
       flex: 1;
@@ -298,10 +298,10 @@
       width: 6px;
     }
     .job-feed-scroll::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.2);
+      background: #F4F6FA;
     }
     .job-feed-scroll::-webkit-scrollbar-thumb {
-      background: #334155;
+      background: #CBD3E1;
       border-radius: 4px;
     }
     .job-feed-scroll::-webkit-scrollbar-thumb:hover {
@@ -319,11 +319,11 @@
       gap: 8px;
       flex-shrink: 0;
     }
-    .job-card:hover { border-color: var(--grab-green); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .job-card:hover { border-color: var(--grab-green); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(25,42,99,0.12); }
     .job-card-top { display: flex; justify-content: space-between; align-items: flex-start; }
     .job-fare { font-size: 17px; font-weight: 800; color: var(--grab-green); }
     .job-service-tag {
-      background: rgba(0, 177, 79, 0.2);
+      background: rgba(25, 42, 99, 0.2);
       color: var(--grab-green);
       font-size: 11px;
       font-weight: 700;
@@ -339,7 +339,7 @@
     /* JOB DETAIL POPUP (ACCEPT OR DECLINE) */
     .detail-card {
       background: var(--grab-dark-card);
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--border-dark);
       border-radius: var(--radius-lg);
       padding: 20px;
       margin: 16px;
@@ -379,8 +379,8 @@
     }
     .btn-accept:hover { background: var(--grab-green-dark); }
     .btn-decline {
-      background: #334155;
-      color: #fff;
+      background: #E9ECF5;
+      color: #334155;
       border: 1px solid var(--border-dark);
       padding: 14px;
       border-radius: var(--radius-md);
@@ -393,7 +393,7 @@
       gap: 6px;
       transition: background 0.2s;
     }
-    .btn-decline:hover { background: #475569; }
+    .btn-decline:hover { background: #DDE2EC; }
 
     /* NAVIGATION HUD */
     .hud-card {
@@ -445,7 +445,7 @@
   <!-- HEADER -->
   <header id="header">
     <div class="brand-wrap">
-      <div class="grab-badge">Grab</div>
+      <div class="grab-badge">UETransport</div>
       <div class="brand-text">
         <h1>Tài xế Đối tác (Driver Partner)</h1>
         <p>Cửa sổ Nhận cuốc & Điều hướng chuyến đi Hà Nội</p>
@@ -486,8 +486,8 @@
       <div class="form-group">
         <label class="form-label">Loại xe đăng ký chạy *</label>
         <select id="inpDriverType" class="form-select" onchange="onDriverVehicleTypeChange()">
-          <option value="grab_bike">🛵 Xe máy (GrabBike / Xe ôm)</option>
-          <option value="grab_car">🚗 Ô tô (GrabCar / Plus / Share)</option>
+          <option value="grab_bike">🛵 Xe máy (UETransportBike / Xe ôm)</option>
+          <option value="grab_car">🚗 Ô tô (UETransportCar / Plus / Share)</option>
         </select>
       </div>
 
@@ -587,12 +587,12 @@
 
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
-              <span class="job-service-tag" id="mdlServiceTag">GrabBike</span>
+              <span class="job-service-tag" id="mdlServiceTag">UETransportBike</span>
               <div class="job-fare" id="mdlFare" style="margin-top:4px;">12.500 đ</div>
             </div>
             <div style="text-align:right;">
               <div style="font-size:11px; color:var(--text-muted);">Đón cách bạn</div>
-              <div style="font-size:14px; font-weight:700; color:#fff;" id="mdlDistanceEta">450 m (~2 phút)</div>
+              <div style="font-size:14px; font-weight:700; color:var(--text-light);" id="mdlDistanceEta">450 m (~2 phút)</div>
             </div>
           </div>
 
@@ -602,18 +602,18 @@
           </div>
 
           <!-- THÔNG TIN KHÁCH HÀNG & LỘ TRÌNH -->
-          <div style="background:rgba(0,0,0,0.3); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+          <div style="background:#F4F6FA; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:8px;">
             <div style="display:flex; align-items:center; gap:8px;">
               <span style="font-size:16px;">👤</span>
               <div>
-                <strong style="color:#fff; font-size:13px;" id="mdlCustName">Nguyễn Thu Trang</strong>
+                <strong style="color:var(--text-light); font-size:13px;" id="mdlCustName">Nguyễn Thu Trang</strong>
                 <span style="font-size:11px; color:var(--text-muted); margin-left:6px;" id="mdlCustPhone">0912 345 678</span>
               </div>
             </div>
-            <div style="font-size:12px; color:#CBD5E1;">
+            <div style="font-size:12px; color:#334155;">
               🟢 <strong>Điểm đón:</strong> <span id="mdlPickup">Hồ Hoàn Kiếm</span>
             </div>
-            <div style="font-size:12px; color:#CBD5E1;">
+            <div style="font-size:12px; color:#334155;">
               🔴 <strong>Điểm trả:</strong> <span id="mdlDropoff">Nhà hát Lớn</span>
             </div>
           </div>
@@ -640,14 +640,14 @@
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
               <div style="font-size:22px;">👤</div>
               <div>
-                <div style="font-weight:800; font-size:14px; color:#fff;" id="navCustName">Khách: Nguyễn Thu Trang</div>
+                <div style="font-weight:800; font-size:14px; color:var(--text-light);" id="navCustName">Khách: Nguyễn Thu Trang</div>
                 <div style="font-size:11px; color:var(--text-muted);" id="navCustPhone">0912 345 678</div>
               </div>
             </div>
 
             <div style="font-size:12px; color:var(--text-muted); margin-top:8px;">
-              <div>🟢 <strong>Điểm đón:</strong> <span id="navPickup" style="color:#fff;">Hồ Hoàn Kiếm</span></div>
-              <div style="margin-top:4px;">🔴 <strong>Điểm trả:</strong> <span id="navDropoff" style="color:#fff;">Nhà hát Lớn</span></div>
+              <div>🟢 <strong>Điểm đón:</strong> <span id="navPickup" style="color:var(--text-light);">Hồ Hoàn Kiếm</span></div>
+              <div style="margin-top:4px;">🔴 <strong>Điểm trả:</strong> <span id="navDropoff" style="color:var(--text-light);">Nhà hát Lớn</span></div>
             </div>
           </div>
 
@@ -658,7 +658,7 @@
           <button class="btn-nav-action" id="btnStartTrip" style="display:none; background:#2563EB;" onclick="triggerTripAction('start_trip')">
             <span>🚀 Bắt đầu chuyến đi (Khách đã lên xe)</span>
           </button>
-          <button class="btn-nav-action" id="btnFinishTrip" style="display:none; background:#059669;" onclick="triggerTripAction('complete_trip')">
+          <button class="btn-nav-action" id="btnFinishTrip" style="display:none; background:#047857;" onclick="triggerTripAction('complete_trip')">
             <span>🏁 Hoàn thành chuyến đi (Thu tiền & Đóng cuốc)</span>
           </button>
         </div>
@@ -802,9 +802,9 @@
           // Cập nhật thông báo bộ lọc
           const filterNotice = document.getElementById('filterNoticeText');
           if (isBike) {
-            filterNotice.innerText = '🛵 Bộ lọc: Chỉ hiển thị cuốc xe máy (GrabBike)';
+            filterNotice.innerText = '🛵 Bộ lọc: Chỉ hiển thị cuốc xe máy (UETransportBike)';
           } else {
-            filterNotice.innerText = '🚗 Bộ lọc: Chỉ hiển thị cuốc ô tô (GrabCar / Plus / Share)';
+            filterNotice.innerText = '🚗 Bộ lọc: Chỉ hiển thị cuốc ô tô (UETransportCar / Plus / Share)';
           }
 
           // Khởi tạo bản đồ lớn
@@ -905,7 +905,7 @@
         card.innerHTML = `
           <div class="job-card-top">
             <div>
-              <span class="job-service-tag">${isBikeTrip ? '🛵 GrabBike' : '🚗 ' + (job.service_name || 'GrabCar')}</span>
+              <span class="job-service-tag">${isBikeTrip ? '🛵 UETransportBike' : '🚗 ' + (job.service_name || 'UETransportCar')}</span>
               <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
                 Đón cách: <strong>${Math.round(job.distance_to_pickup_m)} m</strong> (~${job.pickup_eta_minutes} phút)
               </div>
@@ -916,7 +916,7 @@
           <div style="display:flex; flex-direction:column; gap:4px; font-size:12px; margin-top:4px;">
             <div style="display:flex; align-items:center; gap:6px;">
               <span>🟢</span>
-              <span style="font-weight:700; color:#fff;">${job.origin_address}</span>
+              <span style="font-weight:700; color:var(--text-light);">${job.origin_address}</span>
             </div>
             <div style="display:flex; align-items:center; gap:6px;">
               <span>🔴</span>
@@ -943,7 +943,7 @@
       document.getElementById('jobDetailSection').style.display = 'flex';
 
       const isBike = job.service_type === 'grab_bike';
-      document.getElementById('mdlServiceTag').innerText = isBike ? '🛵 GrabBike' : '🚗 ' + (job.service_name || 'GrabCar');
+      document.getElementById('mdlServiceTag').innerText = isBike ? '🛵 UETransportBike' : '🚗 ' + (job.service_name || 'UETransportCar');
       document.getElementById('mdlFare').innerText = (job.estimated_price_vnd || 0).toLocaleString() + ' đ';
       document.getElementById('mdlDistanceEta').innerText = `${Math.round(job.distance_to_pickup_m)} m (~${job.pickup_eta_minutes} phút)`;
 
@@ -976,7 +976,7 @@
       }).addTo(miniMap);
 
       if (job.route_coords && job.route_coords.length > 0) {
-        miniRouteLayer = L.polyline(job.route_coords, { color: '#00B14F', weight: 4 }).addTo(miniMap);
+        miniRouteLayer = L.polyline(job.route_coords, { color: '#192A63', weight: 4 }).addTo(miniMap);
         miniMap.fitBounds(miniRouteLayer.getBounds(), { padding: [20, 20] });
       }
 

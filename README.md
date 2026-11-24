@@ -1,7 +1,7 @@
 # HỆ THỐNG ĐIỀU PHỐI VÀ GHÉP CHUYẾN CHO DỊCH VỤ GỌI XE (HÀ NỘI)
 > **Đề tài Tiểu luận môn:** Khoa học Dịch vụ (Service Science)  
 > **Khu vực mô phỏng thực tế:** Quận Hoàn Kiếm, TP. Hà Nội (Dữ liệu OpenStreetMap: 216 nút giao lộ, 462 đoạn đường)  
-> **Giao diện vận hành:** Web Dashboard mô phỏng trung tâm điều phối Grab Operations (Leaflet.js + Chart.js + FastAPI WebSocket)
+> **Giao diện vận hành:** Web Dashboard mô phỏng trung tâm điều phối UETransport Operations (Leaflet.js + Chart.js + FastAPI WebSocket)
 
 ---
 
@@ -35,7 +35,6 @@ KHDV/
 ├── core_engine/                 # Động cơ mô phỏng không-thời gian (Spatiotemporal Engine)
 │   ├── entities.py              # Thực thể: Driver, Request, DriverState, RequestState
 │   ├── map_network.py           # Bản đồ OSMnx: tải đồ thị đường phố, tính Dijkstra, nội suy tọa độ
-│   ├── demand_generator.py      # Bộ sinh nhu cầu
 │   └── simulator.py             # Quản lý vòng lặp tick mô phỏng, chuyển động xe, đo lường KPIs
 │
 ├── matching/                    # Các chiến lược ghép cặp (Dispatch & Matching Strategies)
@@ -64,11 +63,9 @@ KHDV/
 │   ├── test_node_ids.py
 │   └── test_services.py
 │
-├── static/                      # Giao diện Web App điều hành Grab Operations
+├── static/                      # Giao diện Web App điều hành
 │   └── index.html               # Web UI tương tác: Leaflet bản đồ Hà Nội, Chart.js, KPI real-time
 │
-├── adapter.py                   # Adapter tương thích cho tích hợp matcher cũ
-├── main.py                      # CLI gọi qua SimulationService
 ├── server.py                    # API Gateway REST/WebSocket
 └── start_server.bat             # File khởi chạy nhanh 1-click cho Windows
 ```
@@ -138,21 +135,7 @@ Benchmark chạy bốn chiến lược trên cùng cấu hình cho từng seed; 
    - Tùy chỉnh số lượng tài xế (3 - 30 xe), cường độ Poisson $\lambda$, và thanh trượt tốc độ (1x - 10x).
    - Nút **"So sánh chiến lược"** để cấu hình thời lượng, số lượt, warm-up, seed, giờ bắt đầu, profile nhu cầu và cửa sổ gom lô; benchmark chạy trên máy chủ, khi offline ứng dụng không giả lập số liệu kết quả.
 
-### Cách 2: Chạy Dòng lệnh (CLI)
-Chạy so sánh đồng thời cả 4 chiến lược:
-```bash
-python main.py compare
-```
-
-Chạy từng chiến lược cụ thể:
-```bash
-python main.py greedy
-python main.py hungarian
-python main.py pooling
-python main.py hungarian_pooling
-```
-
-### Cách 3: Chạy Kiểm thử Unit Test
+### Cách 2: Chạy Kiểm thử Unit Test
 ```bash
 python -m pytest tests/
 ```

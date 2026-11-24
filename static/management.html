@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Grab Operations - Hệ thống Quản lý & Điều phối</title>
+  <title>UETransport Operations - Hệ thống Quản lý & Điều phối</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,9 +15,9 @@
 
   <style>
     :root {
-      --grab-green: #00B14F;
-      --grab-green-dark: #008B3E;
-      --grab-green-light: #E8F8F0;
+      --grab-green: #192A63;
+      --grab-green-dark: #101E48;
+      --grab-green-light: #E9ECF5;
       --border-color: #E2E8F0;
       --text-main: #1E293B;
       --text-muted: #64748B;
@@ -201,7 +201,7 @@
   <!-- HEADER -->
   <header id="header">
     <div class="brand-wrap">
-      <div class="grab-badge">Grab</div>
+      <div class="grab-badge">UETransport</div>
       <div>
         <div class="brand-title">Trung tâm Quản lý & Điều phối (Operations)</div>
         <div class="brand-sub">Bản đồ số OpenStreetMap &bull; Giám sát toàn bộ vị trí đón, trả khách và đội xe</div>
@@ -233,7 +233,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-val" id="cntActive" style="color:var(--grab-blue);">0</div>
-          <div class="stat-lbl">Đang chạy</div>
+          <div class="stat-lbl">Đang chở khách</div>
         </div>
         <div class="stat-card">
           <div class="stat-val" id="cntDrivers" style="color:var(--grab-green);">0</div>
@@ -315,7 +315,7 @@
         const data = await res.json();
 
         document.getElementById('cntWaiting').innerText = data.waiting_trips_count || 0;
-        document.getElementById('cntActive').innerText = data.active_trips_count || 0;
+        document.getElementById('cntActive').innerText = data.in_transit_trips_count || 0;
         document.getElementById('cntDrivers').innerText = data.total_drivers || 0;
 
         renderMapMarkers(data);

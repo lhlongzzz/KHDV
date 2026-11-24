@@ -7,7 +7,6 @@ Bao gồm:
 """
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Generic
@@ -32,6 +31,7 @@ class ServiceResult(Generic[T]):
 
 
 class EventType(str, Enum):
+    BOOKING_CREATED = "BOOKING_CREATED"
     REQUEST_CREATED = "REQUEST_CREATED"
     REQUEST_MATCHED = "REQUEST_MATCHED"
     REQUEST_PICKED_UP = "REQUEST_PICKED_UP"

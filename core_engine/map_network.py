@@ -7,7 +7,7 @@ if hasattr(sys.stderr, 'reconfigure'):
 import osmnx as ox
 import networkx as nx
 import random
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 
 class RealRoadMap:
     def __init__(self, place_name: str = "Hoan Kiem, Hanoi, Vietnam", network_type: str = "drive"):

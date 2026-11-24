@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from math import asin, cos, radians, sin, sqrt
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 from services.base import EventType, ServiceResult, event_bus
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
 
 
 class BookingService:
+    DRIVER_SPEED_METERS_PER_SECOND = 10.0
+
     def __init__(self, map_service: MapService):
         self.map_service = map_service
         self.customers: Dict[str, CustomerProfileDTO] = {}
@@ -129,7 +132,7 @@ class BookingService:
     # Báo giá & Dự tính lộ trình
     # =========================================================================
     def estimate_booking(self, origin_node: int, destination_node: int) -> ServiceResult[EstimateResultDTO]:
-        """Tính toán cước phí, khoảng cách và lộ trình cho tất cả các loại xe Grab."""
+        """Tính toán cước phí, khoảng cách và lộ trình cho tất cả các loại xe UETransport."""
         route_res = self.map_service.calculate_route(origin_node, destination_node)
         if not route_res.success or not route_res.data:
             return ServiceResult.fail(route_res.error or "Không tìm được đường đi")
@@ -221,7 +224,24 @@ class BookingService:
         )
 
         self.bookings[booking_id] = booking
-        event_bus.publish(EventType.REQUEST_CREATED, booking)
+        event_bus.publish(EventType.BOOKING_CREATED, booking)
+        return ServiceResult.ok(booking)
+
+    def cancel_booking(self, customer_id: str, booking_id: str) -> ServiceResult[BookingDTO]:
+        booking = self.bookings.get(booking_id)
+        if not booking:
+            return ServiceResult.fail("Không tìm thấy cuốc xe", status_code=404)
+        if booking.customer.customer_id != customer_id:
+            return ServiceResult.fail("Bạn không có quyền hủy cuốc xe này", status_code=403)
+        if booking.status != BookingState.WAITING:
+            return ServiceResult.fail(
+                "Chỉ có thể hủy cuốc xe khi đang chờ tài xế",
+                status_code=409,
+            )
+
+        booking.status = BookingState.CANCELLED
+        booking.cancel_reason = "Khách hàng chủ động hủy chuyến"
+        event_bus.publish(EventType.REQUEST_CANCELLED, booking)
         return ServiceResult.ok(booking)
 
     # =========================================================================
@@ -299,7 +319,13 @@ class BookingService:
     # =========================================================================
     # Quyết định của Tài xế: Chấp nhận hoặc Từ chối
     # =========================================================================
-    def driver_respond_trip(self, driver_id: str, booking_id: str, decision: str) -> ServiceResult[BookingDTO]:
+    def driver_respond_trip(
+        self,
+        driver_id: str,
+        booking_id: str,
+        decision: str,
+        current_position: Optional[Tuple[float, float]] = None,
+    ) -> ServiceResult[BookingDTO]:
         """
         Tài xế có thể lựa chọn đón khách hoặc không:
         - "accept": Nhận cuốc, chuyển trạng thái cuốc sang MATCHED, khóa cuốc khỏi các tài xế khác.
@@ -318,12 +344,37 @@ class BookingService:
         if decision_clean == "accept":
             if booking.status != BookingState.WAITING:
                 return ServiceResult.fail(f"Cuốc xe không còn khả dụng (Trạng thái hiện tại: {booking.status.value})")
+            driver_has_active_booking = any(
+                existing.driver
+                and existing.driver.driver_id == driver_id
+                and existing.status in (
+                    BookingState.MATCHED,
+                    BookingState.PICKING_UP,
+                    BookingState.IN_TRANSIT,
+                )
+                for existing in self.bookings.values()
+            )
+            if driver.status == "BUSY" or driver_has_active_booking:
+                return ServiceResult.fail("Tài xế đang phục vụ một cuốc xe khác")
+
+            if current_position is not None:
+                latitude, longitude = current_position
+                nearest_node = self.map_service.find_nearest_node(latitude, longitude)
+                if not nearest_node.success or nearest_node.data is None:
+                    return ServiceResult.fail(nearest_node.error or "Không thể xác định vị trí tài xế")
+                driver.current_node = nearest_node.data
+                driver.current_lat = round(latitude, 6)
+                driver.current_lon = round(longitude, 6)
 
             # Tính đường đi đón khách từ vị trí hiện tại của tài xế
             pickup_route = self.map_service.calculate_route(driver.current_node, booking.origin_node)
             pickup_coords = []
             if pickup_route.success and pickup_route.data:
                 pickup_coords = [[round(lat, 6), round(lon, 6)] for lat, lon in pickup_route.data.geometry_coords]
+                if current_position is not None:
+                    start_position = [driver.current_lat, driver.current_lon]
+                    if start_position != pickup_coords[0]:
+                        pickup_coords.insert(0, start_position)
 
             # Gán tài xế vào cuốc
             booking.driver = driver
@@ -345,6 +396,95 @@ class BookingService:
             return ServiceResult.ok(booking)
 
         return ServiceResult.fail(f"Quyết định không hợp lệ: {decision} (chỉ chấp nhận 'accept' hoặc 'decline')")
+
+    @staticmethod
+    def _distance_between_coordinates(start: List[float], end: List[float]) -> float:
+        earth_radius_meters = 6_371_000
+        lat1, lon1 = radians(start[0]), radians(start[1])
+        lat2, lon2 = radians(end[0]), radians(end[1])
+        lat_delta = lat2 - lat1
+        lon_delta = lon2 - lon1
+        haversine = (
+            sin(lat_delta / 2) ** 2
+            + cos(lat1) * cos(lat2) * sin(lon_delta / 2) ** 2
+        )
+        return 2 * earth_radius_meters * asin(sqrt(haversine))
+
+    @classmethod
+    def _position_along_route(
+        cls, route: List[List[float]], distance_meters: float
+    ) -> Tuple[Tuple[float, float], bool]:
+        if not route:
+            raise ValueError("Tuyến đường phải có ít nhất một tọa độ")
+
+        remaining_distance = max(0.0, distance_meters)
+        for start, end in zip(route, route[1:]):
+            segment_distance = cls._distance_between_coordinates(start, end)
+            if segment_distance == 0:
+                continue
+            if remaining_distance < segment_distance:
+                fraction = remaining_distance / segment_distance
+                return (
+                    (
+                        start[0] + (end[0] - start[0]) * fraction,
+                        start[1] + (end[1] - start[1]) * fraction,
+                    ),
+                    False,
+                )
+            remaining_distance -= segment_distance
+
+        return (route[-1][0], route[-1][1]), True
+
+    def update_driver_positions(self, now: Optional[float] = None) -> List[dict]:
+        """Advance matched drivers along their pickup or passenger route."""
+        current_time = time.time() if now is None else now
+        position_updates = []
+
+        for booking in self.bookings.values():
+            if not booking.driver:
+                continue
+
+            if booking.status == BookingState.MATCHED:
+                route = booking.pickup_route_coords
+                started_at = booking.matched_time
+                destination_node = booking.origin_node
+            elif booking.status == BookingState.IN_TRANSIT:
+                route = booking.trip_route_coords
+                started_at = booking.picked_up_time
+                destination_node = booking.destination_node
+            else:
+                continue
+
+            if started_at is None or not route:
+                continue
+
+            distance_meters = max(0.0, current_time - started_at) * self.DRIVER_SPEED_METERS_PER_SECOND
+            (latitude, longitude), reached_destination = self._position_along_route(
+                route, distance_meters
+            )
+            latitude = round(latitude, 6)
+            longitude = round(longitude, 6)
+            position_changed = (
+                booking.current_driver_lat != latitude
+                or booking.current_driver_lon != longitude
+            )
+
+            booking.current_driver_lat = latitude
+            booking.current_driver_lon = longitude
+            booking.driver.current_lat = latitude
+            booking.driver.current_lon = longitude
+            if reached_destination:
+                booking.driver.current_node = destination_node
+
+            if position_changed:
+                position_updates.append({
+                    "booking_id": booking.booking_id,
+                    "driver_id": booking.driver.driver_id,
+                    "lat": latitude,
+                    "lon": longitude,
+                })
+
+        return position_updates
 
     # =========================================================================
     # Tiến trình chuyến đi (Tài xế thực hiện)
@@ -368,6 +508,9 @@ class BookingService:
             booking.status = BookingState.PICKING_UP
             booking.current_driver_lat = booking.origin_lat
             booking.current_driver_lon = booking.origin_lon
+            booking.driver.current_node = booking.origin_node
+            booking.driver.current_lat = booking.origin_lat
+            booking.driver.current_lon = booking.origin_lon
             event_bus.publish(EventType.REQUEST_PICKED_UP, booking)
             return ServiceResult.ok(booking)
 
@@ -479,6 +622,10 @@ class BookingService:
             "total_drivers": len(self.drivers),
             "waiting_trips_count": len(waiting_trips_data),
             "active_trips_count": len(active_trips_data),
+            "in_transit_trips_count": sum(
+                1 for b in self.bookings.values()
+                if b.status == BookingState.IN_TRANSIT
+            ),
             "drivers": drivers_data,
             "waiting_trips": waiting_trips_data,
             "active_trips": active_trips_data,

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 
 class BookingState(str, Enum):
@@ -19,15 +19,15 @@ class BookingState(str, Enum):
 
 
 class ServiceType(str, Enum):
-    GRAB_CAR = "grab_car"             # GrabCar 4 chỗ tiêu chuẩn
-    GRAB_BIKE = "grab_bike"           # GrabBike xe máy linh hoạt
-    GRAB_CAR_PLUS = "grab_car_plus"   # GrabCar Plus xe rộng, tài xế đánh giá cao
-    GRAB_CAR_SHARE = "grab_car_share" # GrabCar Ghép chuyến (Ride-Pooling) tiết kiệm cước
+    GRAB_CAR = "grab_car"             # UETransportCar 4 chỗ tiêu chuẩn
+    GRAB_BIKE = "grab_bike"           # UETransportBike xe máy linh hoạt
+    GRAB_CAR_PLUS = "grab_car_plus"   # UETransportCar Plus xe rộng, tài xế đánh giá cao
+    GRAB_CAR_SHARE = "grab_car_share" # UETransportCar Ghép chuyến (Ride-Pooling) tiết kiệm cước
 
 
 SERVICE_INFO = {
     ServiceType.GRAB_CAR.value: {
-        "name": "GrabCar",
+        "name": "UETransportCar",
         "description": "Xe 4 chỗ tiêu chuẩn, di chuyển an toàn & thoải mái",
         "capacity": 4,
         "base_fare": 25000,
@@ -35,7 +35,7 @@ SERVICE_INFO = {
         "icon": "🚗",
     },
     ServiceType.GRAB_BIKE.value: {
-        "name": "GrabBike",
+        "name": "UETransportBike",
         "description": "Xe máy nhanh chóng, tiết kiệm, len lỏi phố cổ",
         "capacity": 1,
         "base_fare": 12500,
@@ -43,7 +43,7 @@ SERVICE_INFO = {
         "icon": "🛵",
     },
     ServiceType.GRAB_CAR_PLUS.value: {
-        "name": "GrabCar Plus",
+        "name": "UETransportCar Plus",
         "description": "Xe cao cấp, đời mới, tài xế đánh giá 4.9+ sao",
         "capacity": 4,
         "base_fare": 32000,
@@ -51,7 +51,7 @@ SERVICE_INFO = {
         "icon": "🚙",
     },
     ServiceType.GRAB_CAR_SHARE.value: {
-        "name": "GrabCar Share",
+        "name": "UETransportCar Share",
         "description": "Ghép chuyến thông minh cùng lộ trình, tiết kiệm 25%",
         "capacity": 2,
         "base_fare": 19000,
@@ -100,7 +100,7 @@ class BookingDTO:
     destination_lat: float
     destination_lon: float
     service_type: str = ServiceType.GRAB_CAR.value
-    service_name: str = "GrabCar"
+    service_name: str = "UETransportCar"
     distance_meters: float = 0.0
     estimated_duration_seconds: float = 0.0
     estimated_price_vnd: int = 0

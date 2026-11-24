@@ -19,12 +19,13 @@ if hasattr(sys.stderr, "reconfigure"):
 import asyncio
 import json
 import logging
+import math
 import os
 import threading
 import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
-from typing import Dict, List, Optional, Set
+from typing import List, Optional, Set
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -159,18 +160,25 @@ async def lifespan(app: FastAPI):
             })
 
         def _on_booking_picked_up(b):
-            send_ws_event({"type": "event_trip_action", "booking_id": b.booking_id, "action": "start_trip", "trip_status": b.status.value})
+            send_ws_event({"type": "event_trip_action", "booking_id": b.booking_id, "action": "arrived_pickup", "trip_status": b.status.value})
             send_ws_event({"type": "portal_booking_picked_up", "booking_id": b.booking_id})
 
         def _on_booking_completed(b):
             send_ws_event({"type": "event_trip_action", "booking_id": b.booking_id, "action": "complete_trip", "trip_status": b.status.value})
-            send_ws_event({"type": "portal_booking_completed", "booking_id": b.booking_id})
+            send_ws_event({
+                "type": "portal_booking_completed",
+                "booking_id": b.booking_id,
+                "driver_id": b.driver.driver_id if b.driver else None,
+                "lat": b.current_driver_lat,
+                "lon": b.current_driver_lon,
+            })
 
         def _on_booking_cancelled(b):
-            send_ws_event({"type": "event_booking_timeout", "booking_id": b.booking_id, "reason": b.cancel_reason})
+            if b.cancel_reason and b.cancel_reason.startswith("Tự động hủy chuyến"):
+                send_ws_event({"type": "event_booking_timeout", "booking_id": b.booking_id, "reason": b.cancel_reason})
             send_ws_event({"type": "portal_booking_cancelled", "booking_id": b.booking_id, "reason": b.cancel_reason})
 
-        event_bus.subscribe(EventType.REQUEST_CREATED, _on_booking_created)
+        event_bus.subscribe(EventType.BOOKING_CREATED, _on_booking_created)
         event_bus.subscribe(EventType.REQUEST_MATCHED, _on_booking_matched)
         event_bus.subscribe(EventType.REQUEST_PICKED_UP, _on_booking_picked_up)
         event_bus.subscribe(EventType.REQUEST_COMPLETED, _on_booking_completed)
@@ -180,7 +188,23 @@ async def lifespan(app: FastAPI):
         booking_service = None
         map_nodes_cache = None
         print(f"[Server] ⚠ Map Service lỗi: {map_result.error}")
-    yield
+
+    async def _broadcast_driver_positions():
+        while True:
+            await asyncio.sleep(1)
+            if booking_service:
+                for position in booking_service.update_driver_positions():
+                    send_ws_event({"type": "portal_driver_location", **position})
+
+    location_task = asyncio.create_task(_broadcast_driver_positions())
+    try:
+        yield
+    finally:
+        location_task.cancel()
+        try:
+            await location_task
+        except asyncio.CancelledError:
+            pass
 
 app = FastAPI(title="Ride-Hailing Platform - Hanoi Simulator", lifespan=lifespan)
 app.add_middleware(
@@ -714,6 +738,28 @@ async def book_trip_api(payload: dict):
     }
 
 
+@app.post("/api/trip/{booking_id}/cancel")
+async def cancel_trip_api(booking_id: str, payload: dict):
+    if not booking_service:
+        return JSONResponse({"error": "Booking Service chưa khởi tạo"}, status_code=503)
+    customer_id = payload.get("customer_id")
+    if not customer_id:
+        return JSONResponse({"error": "Thiếu customer_id"}, status_code=400)
+
+    res = booking_service.cancel_booking(customer_id, booking_id)
+    if not res.success or not res.data:
+        return JSONResponse(
+            {"error": res.error},
+            status_code=res.metadata.get("status_code", 400),
+        )
+    return {
+        "status": "ok",
+        "booking_id": res.data.booking_id,
+        "trip_status": res.data.status.value,
+        "cancel_reason": res.data.cancel_reason,
+    }
+
+
 @app.get("/api/trip/{booking_id}")
 async def get_trip_details_api(booking_id: str):
     if not booking_service:
@@ -774,7 +820,28 @@ async def driver_decision_api(payload: dict):
     except KeyError as e:
         return JSONResponse({"error": f"Thiếu trường dữ liệu: {e}"}, status_code=400)
 
-    res = booking_service.driver_respond_trip(driver_id, booking_id, decision)
+    current_position = None
+    if "current_lat" in payload or "current_lon" in payload:
+        try:
+            current_lat = float(payload["current_lat"])
+            current_lon = float(payload["current_lon"])
+        except (KeyError, TypeError, ValueError):
+            return JSONResponse({"error": "Tọa độ vị trí tài xế không hợp lệ"}, status_code=400)
+        if (
+            not math.isfinite(current_lat)
+            or not math.isfinite(current_lon)
+            or not -90 <= current_lat <= 90
+            or not -180 <= current_lon <= 180
+        ):
+            return JSONResponse({"error": "Tọa độ vị trí tài xế không hợp lệ"}, status_code=400)
+        current_position = (current_lat, current_lon)
+
+    res = booking_service.driver_respond_trip(
+        driver_id,
+        booking_id,
+        decision,
+        current_position=current_position,
+    )
     if not res.success or not res.data:
         return JSONResponse({"error": res.error}, status_code=400)
     b = res.data
@@ -784,6 +851,9 @@ async def driver_decision_api(payload: dict):
         "booking_id": b.booking_id,
         "trip_status": b.status.value,
         "driver_id": driver_id,
+        "pickup_route_coords": b.pickup_route_coords,
+        "current_driver_lat": b.current_driver_lat,
+        "current_driver_lon": b.current_driver_lon,
     }
 
 
@@ -809,6 +879,14 @@ async def driver_trip_action_api(payload: dict):
         "action": action,
         "trip_status": b.status.value,
     })
+    if b.driver and b.current_driver_lat is not None and b.current_driver_lon is not None:
+        send_ws_event({
+            "type": "portal_driver_location",
+            "booking_id": b.booking_id,
+            "driver_id": b.driver.driver_id,
+            "lat": b.current_driver_lat,
+            "lon": b.current_driver_lon,
+        })
 
     return {
         "status": "ok",

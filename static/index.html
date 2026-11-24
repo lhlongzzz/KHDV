@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hệ thống Điều phối & Ghép Chuyến Gọi Xe Hà Nội – Grab Simulator</title>
+<title>Hệ thống Điều phối & Ghép Chuyến Gọi Xe Hà Nội – UETransport Simulator</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,27 +18,27 @@
 
 <style>
 /* =============================================
-   GRAB-THEMED OPERATIONS SYSTEM STYLES
+   UETransport OPERATIONS SYSTEM STYLES
    ============================================= */
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
-  --grab-green: #007f3b;
-  --grab-green-glow: transparent;
-  --grab-green-dark: #006b33;
-  --grab-green-light: #008b42;
-  --bg-main: #171719;
-  --bg-card: #131217;
-  --bg-card-sub: #212023;
-  --border: #29282c;
-  --border-light: #3a393e;
-  --text-primary: #f2f2f3;
-  --text-secondary: #b7b7bb;
-  --text-muted: #929196;
+  --grab-green: #192A63;
+  --grab-green-glow: rgba(25,42,99,0.18);
+  --grab-green-dark: #101E48;
+  --grab-green-light: #E9ECF5;
+  --bg-main: #F4F6FA;
+  --bg-card: #FFFFFF;
+  --bg-card-sub: #E9ECF5;
+  --border: #DDE2EC;
+  --border-light: #CBD3E1;
+  --text-primary: #192A63;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
   --yellow: #d9a441;
   --red: #e5566f;
   --blue: #70a9ec;
-  --purple: #929196;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --purple: #64748B;
+  --shadow: 0 8px 24px rgba(25, 42, 99, 0.10);
 }
 html, body {
   height: 100%;
@@ -90,7 +90,7 @@ html, body {
   letter-spacing: -0.2px;
 }
 .brand-title span {
-  color: var(--grab-green);
+  color: #192A63;
 }
 .brand-subtitle {
   font-size: 11px;
@@ -221,10 +221,10 @@ html, body {
   font-weight: 700;
   color: var(--grab-green);
   font-variant-numeric: tabular-nums;
-  background: rgba(0, 177, 79, 0.1);
+  background: rgba(25, 42, 99, 0.1);
   padding: 4px 10px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 177, 79, 0.25);
+  border: 1px solid rgba(25, 42, 99, 0.25);
 }
 .mode-badge {
   font-size: 11px;
@@ -245,6 +245,7 @@ html, body {
 #content {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
@@ -393,6 +394,90 @@ html, body {
   margin-top: 2px;
 }
 
+.driver-detail-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 8px;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #CBD3E1 transparent;
+}
+
+.driver-list-empty {
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-align: center;
+}
+
+.driver-detail-row {
+  display: grid;
+  grid-template-areas:
+    "identity speed"
+    "status speed";
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+  min-height: 44px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.driver-detail-row:last-child {
+  border-bottom: 0;
+}
+
+.driver-detail-identity {
+  grid-area: identity;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.driver-detail-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.driver-detail-dot.is-idle { background: #247B50; }
+.driver-detail-dot.is-pickup { background: #92400E; }
+.driver-detail-dot.is-occupied { background: #192A63; }
+
+.driver-detail-id {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.driver-detail-status {
+  grid-area: status;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.driver-detail-speed {
+  grid-area: speed;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: #E9ECF5;
+  color: #192A63;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* CHART CONTAINER */
 .chart-box {
   background: var(--bg-main);
@@ -437,12 +522,15 @@ html, body {
    ============================================= */
 #mapContainer {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   position: relative;
   background: #000;
 }
 #map {
   width: 100%;
   height: 100%;
+  min-height: 0;
 }
 
 /* Map Floating Overlays */
@@ -645,23 +733,23 @@ html, body {
 
 /* Operations console refresh */
 :root {
-  --grab-green: #007f3b;
-  --grab-green-glow: transparent;
-  --grab-green-dark: #006b33;
-  --grab-green-light: #008b42;
-  --bg-main: #171719;
-  --bg-card: #131217;
-  --bg-card-sub: #212023;
-  --border: #29282c;
-  --border-light: #3a393e;
-  --text-primary: #f2f2f3;
-  --text-secondary: #b7b7bb;
-  --text-muted: #929196;
+  --grab-green: #192A63;
+  --grab-green-glow: rgba(25,42,99,0.18);
+  --grab-green-dark: #101E48;
+  --grab-green-light: #E9ECF5;
+  --bg-main: #F4F6FA;
+  --bg-card: #FFFFFF;
+  --bg-card-sub: #E9ECF5;
+  --border: #DDE2EC;
+  --border-light: #CBD3E1;
+  --text-primary: #192A63;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
   --yellow: #d9a441;
   --red: #e5566f;
   --blue: #70a9ec;
-  --purple: #929196;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --purple: #64748B;
+  --shadow: 0 8px 24px rgba(25, 42, 99, 0.10);
 }
 
 html, body {
@@ -687,8 +775,8 @@ button:focus-visible, input:focus-visible {
   flex-wrap: wrap;
   gap: 10px 16px;
   padding: 12px 20px;
-  background: #131217;
-  border-bottom: 1px solid #29282c;
+  background: #FFFFFF;
+  border-bottom: 1px solid #DDE2EC;
   box-shadow: none;
 }
 
@@ -713,7 +801,7 @@ button:focus-visible, input:focus-visible {
 }
 
 .brand-title span {
-  color: #9ce1ba;
+  color: #192A63;
 }
 
 .brand-subtitle {
@@ -763,10 +851,11 @@ button:focus-visible, input:focus-visible {
 }
 
 .strat-btn.active {
-  background: transparent;
-  color: #fff;
+  background: var(--grab-green);
+  color: #FFFFFF;
   border-bottom-color: var(--grab-green);
-  box-shadow: none;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px var(--grab-green-glow);
 }
 
 .strat-btn:disabled {
@@ -844,7 +933,7 @@ button:focus-visible, input:focus-visible {
 }
 
 .mode-badge.connected {
-  color: #8ddbb1;
+  color: #192A63;
 }
 
 #content {
@@ -853,26 +942,26 @@ button:focus-visible, input:focus-visible {
 
 #sidebar {
   width: 368px;
-  background: #131217;
+  background: #FFFFFF;
   border-right: 1px solid var(--border);
 }
 
 .strategy-banner {
   padding: 12px 18px;
-  background: #1b1a1f;
+  background: #E9ECF5;
   border-bottom: 1px solid var(--border);
   color: var(--text-secondary);
   font-size: 13px;
 }
 
 .strategy-banner strong {
-  color: #8ddbb1;
+  color: #192A63;
 }
 
 .side-scroll {
   gap: 18px;
   padding: 18px;
-  scrollbar-color: #4a494e transparent;
+  scrollbar-color: #CBD3E1 transparent;
 }
 
 .side-scroll [style*="font-size:10px"] {
@@ -897,7 +986,7 @@ button:focus-visible, input:focus-visible {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #171719;
+  background: #F4F6FA;
 }
 
 .kpi-item {
@@ -949,14 +1038,53 @@ button:focus-visible, input:focus-visible {
 }
 
 .util-bar-track {
-  height: 5px;
-  background: #303034;
-  border-radius: 0;
+  height: 12px;
+  margin-top: 10px;
+  background: #E9ECF5;
+  border-radius: 999px;
+  overflow: visible;
+  position: relative;
+}
+
+.util-current-marker {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #192A63;
+  border-radius: 50%;
+  background: #FFFFFF;
+  transform: translate(-50%, -50%);
+  transition: left 0.4s ease;
+}
+
+.util-bar-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 8px;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.util-bar-labels span:last-child {
+  text-align: right;
+}
+
+.util-bar-labels strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .util-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
   background: var(--grab-green);
-  border-radius: 0;
+  border-radius: 999px;
 }
 
 .fleet-box {
@@ -989,11 +1117,33 @@ button:focus-visible, input:focus-visible {
 }
 
 .chart-box {
-  height: 192px;
-  padding: 10px;
-  background: #171719;
+  height: 252px;
+  padding: 8px 10px;
+  background: #FFFFFF;
   border: 1px solid var(--border);
   border-radius: 6px;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+}
+
+.chart-mini {
+  display: grid;
+  grid-template-rows: 16px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.chart-mini-label {
+  padding-left: 26px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.chart-canvas-wrap {
+  position: relative;
+  min-height: 0;
 }
 
 .feed-box {
@@ -1017,7 +1167,7 @@ button:focus-visible, input:focus-visible {
 
 #mapContainer {
   min-width: 0;
-  background: #171719;
+  background: #F4F6FA;
 }
 
 .map-badge-panel {
@@ -1026,22 +1176,22 @@ button:focus-visible, input:focus-visible {
   display: block;
   min-width: 250px;
   padding: 12px 14px;
-  background: #171719;
-  border: 1px solid #343338;
+  background: #FFFFFF;
+  border: 1px solid #DDE2EC;
   border-radius: 6px;
   box-shadow: none;
 }
 
 .map-badge-panel h1 {
   margin: 0 0 5px;
-  color: #fff;
+  color: #192A63;
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.5px;
 }
 
 .map-badge-text {
-  color: #fff;
+  color: #475569;
   font-size: 13px;
   font-weight: 500;
 }
@@ -1051,8 +1201,8 @@ button:focus-visible, input:focus-visible {
   right: 18px;
   min-width: 190px;
   padding: 12px 14px;
-  background: #171719;
-  border: 1px solid #343338;
+  background: #FFFFFF;
+  border: 1px solid #DDE2EC;
   border-radius: 6px;
   box-shadow: none;
   font-size: 13px;
@@ -1060,7 +1210,7 @@ button:focus-visible, input:focus-visible {
 
 .legend-item {
   min-height: 20px;
-  color: #d0d0d3;
+  color: #475569;
   font-size: 13px;
 }
 
@@ -1073,8 +1223,8 @@ button:focus-visible, input:focus-visible {
   bottom: 20px;
   gap: 12px;
   padding: 9px 14px;
-  background: #171719;
-  border: 1px solid #343338;
+  background: #FFFFFF;
+  border: 1px solid #DDE2EC;
   border-radius: 6px;
   box-shadow: none;
   backdrop-filter: none;
@@ -1086,7 +1236,7 @@ button:focus-visible, input:focus-visible {
 }
 
 .speed-val {
-  color: #8ddbb1;
+  color: #192A63;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1099,7 +1249,7 @@ button:focus-visible, input:focus-visible {
 .modal-box {
   width: min(100%, 980px);
   padding: 22px;
-  background: #171719;
+  background: #FFFFFF;
   border: 1px solid var(--border-light);
   border-radius: 8px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
@@ -1164,7 +1314,7 @@ button:focus-visible, input:focus-visible {
 }
 
 .strat-name, .best-metric {
-  color: #8ddbb1;
+  color: #192A63;
 }
 
 .worst-metric {
@@ -1172,18 +1322,125 @@ button:focus-visible, input:focus-visible {
 }
 
 .leaflet-control-layers {
-  border: 1px solid #343338 !important;
+  border: 1px solid #DDE2EC !important;
   border-radius: 6px !important;
 }
 
 .leaflet-control-layers, .leaflet-control-zoom a {
-  background: #171719 !important;
-  color: #f2f2f3 !important;
+  background: #FFFFFF !important;
+  color: #192A63 !important;
 }
 
 .leaflet-control-zoom a {
-  border-color: #343338 !important;
+  border-color: #DDE2EC !important;
   font-family: "Public Sans", Inter, system-ui, sans-serif !important;
+}
+
+.leaflet-tooltip {
+  background: #FFFFFF;
+  border: 1px solid #DDE2EC;
+  border-radius: 6px;
+  color: #192A63;
+  box-shadow: 0 2px 8px rgba(25, 42, 99, 0.12);
+  font-family: "Public Sans", Inter, system-ui, sans-serif;
+}
+
+.leaflet-tooltip-top:before {
+  border-top-color: #FFFFFF;
+}
+
+.leaflet-tooltip-bottom:before {
+  border-bottom-color: #FFFFFF;
+}
+
+.leaflet-tooltip-left:before {
+  border-left-color: #FFFFFF;
+}
+
+.leaflet-tooltip-right:before {
+  border-right-color: #FFFFFF;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #FFFFFF;
+  color: #192A63;
+}
+
+.leaflet-popup-content-wrapper {
+  border: 1px solid #DDE2EC;
+  box-shadow: 0 4px 12px rgba(25, 42, 99, 0.12);
+}
+
+.leaflet-popup-content {
+  font-family: "Public Sans", Inter, system-ui, sans-serif;
+}
+
+.driver-popup {
+  min-width: 220px;
+  color: #1F2937;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.driver-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #DDE2EC;
+  color: #192A63;
+  font-size: 15px;
+}
+
+.driver-popup-status {
+  flex: none;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #E9ECF5;
+  color: #192A63;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.driver-popup-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.driver-popup-row > span {
+  flex: none;
+  color: #475569;
+}
+
+.driver-popup-row > strong {
+  color: #192A63;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.driver-popup-speed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px;
+  margin: 5px 0;
+  border-left: 3px solid #192A63;
+  border-radius: 4px;
+  background: #E9ECF5;
+  color: #192A63;
+}
+
+.driver-popup-speed strong {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .leaflet-control-attribution {
@@ -1341,7 +1598,7 @@ button:focus-visible, input:focus-visible {
     padding: 8px 16px;
     border: 0;
     border-bottom: 1px solid var(--border);
-    background: #131217;
+    background: #FFFFFF;
     color: var(--text-secondary);
     font-size: 13px;
     cursor: pointer;
@@ -1448,7 +1705,7 @@ button:focus-visible, input:focus-visible {
   <!-- TOPBAR -->
   <header id="topbar">
     <div class="brand">
-      <div class="brand-badge">GRAB<br>SIM</div>
+      <div class="brand-badge">UET<br>SIM</div>
       <div>
         <div class="brand-title">Điều phối Gọi xe <span>Hà Nội</span></div>
         <div class="brand-subtitle">Khoa học Dịch vụ – Hoàn Kiếm, HN</div>
@@ -1459,10 +1716,10 @@ button:focus-visible, input:focus-visible {
 
     <!-- Strategy Selection -->
     <div class="strategy-container">
-      <button class="strat-btn active" data-strategy="greedy">Greedy</button>
-      <button class="strat-btn" data-strategy="hungarian">Hungarian</button>
-      <button class="strat-btn" data-strategy="pooling">Greedy + Pool</button>
-      <button class="strat-btn" data-strategy="hungarian_pooling">Hungarian + Pool</button>
+      <button class="strat-btn active" data-strategy="greedy" aria-pressed="true">Greedy</button>
+      <button class="strat-btn" data-strategy="hungarian" aria-pressed="false">Hungarian</button>
+      <button class="strat-btn" data-strategy="pooling" aria-pressed="false">Greedy + Pool</button>
+      <button class="strat-btn" data-strategy="hungarian_pooling" aria-pressed="false">Hungarian + Pool</button>
     </div>
 
     <div class="divider"></div>
@@ -1485,8 +1742,8 @@ button:focus-visible, input:focus-visible {
     <button class="btn-ctrl" id="btnPause">Tạm dừng</button>
     <button class="btn-ctrl" id="btnStop">Dừng mô phỏng</button>
     <button class="btn-ctrl" id="btnBenchmark">So sánh chiến lược</button>
-    <a href="/portal" class="btn-ctrl" id="btnGoPortal" style="background:#00B14F; color:#fff; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
-      <span>🚗 Cổng Đặt xe & Tài xế Grab</span>
+    <a href="/portal" class="btn-ctrl" id="btnGoPortal" style="background:#192A63; color:#fff; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+      <span>🚗 Cổng Đặt xe & Tài xế UETransport</span>
     </a>
 
     <div class="topbar-right">
@@ -1512,7 +1769,6 @@ button:focus-visible, input:focus-visible {
         <div>
           <div class="card-title">
             <span>Chỉ số Hiệu năng (KPIs)</span>
-            <span style="color:var(--grab-green);font-size:10px;">THỜI GIAN THỰC</span>
           </div>
           <div class="kpi-grid">
             <div class="kpi-item">
@@ -1541,16 +1797,18 @@ button:focus-visible, input:focus-visible {
         <!-- Driver Utilization -->
         <div class="util-card">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span class="kpi-lbl">Hiệu suất Tài xế (Utilization)</span>
+            <span class="kpi-lbl">Hiệu suất sử dụng tài xế</span>
             <span style="font-size:16px;font-weight:800;color:var(--grab-green);" id="kpiUtil">0.0%</span>
           </div>
-          <div class="util-bar-track">
+          <div class="util-bar-track" id="utilTrack" role="meter"
+               aria-label="Hiệu suất sử dụng tài xế" aria-valuemin="0"
+               aria-valuemax="100" aria-valuenow="0" aria-valuetext="0%">
             <div class="util-bar-fill" id="utilBar"></div>
+            <span class="util-current-marker" id="utilMarker" aria-hidden="true"></span>
           </div>
-          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--text-muted);">
-            <span>0% (Rảnh rỗi)</span>
-            <span>Tối ưu: 65% - 85%</span>
-            <span>100% (Quá tải)</span>
+          <div class="util-bar-labels">
+            <span><strong>0%</strong> Rảnh</span>
+            <span><strong>100%</strong> Bận</span>
           </div>
         </div>
 
@@ -1579,8 +1837,8 @@ button:focus-visible, input:focus-visible {
             <span>Chi tiết Tài xế & Vận tốc</span>
             <span style="font-size:10px;color:var(--grab-green);" id="fleetTotalCount">0 xe</span>
           </div>
-          <div id="driverList" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;background:var(--bg-main);padding:8px;border-radius:10px;border:1px solid var(--border);scrollbar-width:thin;">
-            <div style="font-size:11px;color:var(--text-muted);text-align:center;padding:10px;">Chưa có tài xế trực tuyến</div>
+          <div id="driverList" class="driver-detail-list">
+            <div class="driver-list-empty">Chưa có tài xế trực tuyến</div>
           </div>
         </div>
 
@@ -1588,7 +1846,14 @@ button:focus-visible, input:focus-visible {
         <div>
           <div class="card-title">Biểu đồ Đón khách & Hủy chuyến</div>
           <div class="chart-box">
-            <canvas id="liveChart"></canvas>
+            <div class="chart-mini">
+              <div class="chart-mini-label">Thời gian chờ đón (giây)</div>
+              <div class="chart-canvas-wrap"><canvas id="waitChart"></canvas></div>
+            </div>
+            <div class="chart-mini">
+              <div class="chart-mini-label">Tỷ lệ hủy (%)</div>
+              <div class="chart-canvas-wrap"><canvas id="cancelChart"></canvas></div>
+            </div>
           </div>
         </div>
 
@@ -1844,39 +2109,30 @@ function requestTooltipContent(request) {
 // =============================================
 // CHART INITIALIZATION
 // =============================================
-let liveChart = null;
+let waitChart = null;
+let cancelChart = null;
 const chartHistory = {
   labels: [],
   waitTimes: [],
   cancelRates: []
 };
 
-function initChart() {
-  Chart.defaults.font.family = '"Public Sans", Inter, system-ui, sans-serif';
-  const ctx = document.getElementById('liveChart').getContext('2d');
-  liveChart = new Chart(ctx, {
+function createMiniChart(canvasId, seriesLabel, color, showTimeLabels, yScale = {}) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  return new Chart(ctx, {
     type: 'line',
     data: {
       labels: [],
       datasets: [
         {
-          label: 'Đón TB (giây)',
+          label: seriesLabel,
           data: [],
-          borderColor: '#00B14F',
+          borderColor: color,
           backgroundColor: 'transparent',
           pointRadius: 0,
+          pointHoverRadius: 4,
           borderWidth: 2,
-          tension: 0.2,
-          yAxisID: 'y'
-        },
-        {
-          label: 'Hủy (%)',
-          data: [],
-          borderColor: '#E5566F',
-          pointRadius: 0,
-          borderWidth: 2,
-          tension: 0.2,
-          yAxisID: 'y1'
+          tension: 0,
         }
       ]
     },
@@ -1885,29 +2141,38 @@ function initChart() {
       maintainAspectRatio: false,
       animation: false,
       plugins: {
-        legend: { labels: { color: '#B7B7BB', font: { size: 11 }, usePointStyle: true, boxWidth: 8 } }
+        legend: { display: false }
       },
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: '#929196', font: { size: 11 }, maxTicksLimit: 4, maxRotation: 0 }
+          ticks: {
+            display: showTimeLabels,
+            color: '#475569',
+            font: { size: 11 },
+            maxTicksLimit: 4,
+            maxRotation: 0
+          }
         },
         y: {
           position: 'left',
-          grid: { color: '#29282C' },
-          ticks: { color: '#B7B7BB', font: { size: 11 } },
-          title: { display: true, text: 'Giây', color: '#B7B7BB', font: { size: 11 } }
-        },
-        y1: {
-          position: 'right',
-          grid: { display: false },
-          ticks: { color: '#B7B7BB', font: { size: 11 } },
-          title: { display: true, text: '% hủy', color: '#B7B7BB', font: { size: 11 } },
-          min: 0,
-          max: 100
+          grid: { color: '#E2E8F0' },
+          ticks: { color: '#475569', font: { size: 11 }, ...yScale.ticks },
+          min: yScale.min,
+          max: yScale.max
         }
       }
     }
+  });
+}
+
+function initChart() {
+  Chart.defaults.font.family = '"Public Sans", Inter, system-ui, sans-serif';
+  waitChart = createMiniChart('waitChart', 'Chờ đón', '#192A63', false);
+  cancelChart = createMiniChart('cancelChart', 'Hủy', '#C2415D', true, {
+    min: 0,
+    max: 100,
+    ticks: { stepSize: 25 }
   });
 }
 
@@ -1923,10 +2188,13 @@ function updateChart(waitTime, cancelRate, simTime) {
     chartHistory.cancelRates.shift();
   }
 
-  liveChart.data.labels = chartHistory.labels;
-  liveChart.data.datasets[0].data = chartHistory.waitTimes;
-  liveChart.data.datasets[1].data = chartHistory.cancelRates;
-  liveChart.update('none');
+  waitChart.data.labels = chartHistory.labels;
+  waitChart.data.datasets[0].data = chartHistory.waitTimes;
+  waitChart.update('none');
+
+  cancelChart.data.labels = chartHistory.labels;
+  cancelChart.data.datasets[0].data = chartHistory.cancelRates;
+  cancelChart.update('none');
 }
 
 // =============================================
@@ -2019,8 +2287,13 @@ function renderTickData(data) {
   document.getElementById('kpiCompleted').textContent = kpis.completed_requests;
   document.getElementById('kpiTotal').textContent = kpis.total_requests;
 
-  document.getElementById('kpiUtil').textContent = `${kpis.driver_utilization}%`;
-  document.getElementById('utilBar').style.width = `${Math.min(kpis.driver_utilization, 100)}%`;
+  const utilization = Math.min(100, Math.max(0, kpis.driver_utilization));
+  document.getElementById('kpiUtil').textContent = `${utilization}%`;
+  document.getElementById('utilBar').style.width = `${utilization}%`;
+  document.getElementById('utilMarker').style.left = `${utilization}%`;
+  const utilTrack = document.getElementById('utilTrack');
+  utilTrack.setAttribute('aria-valuenow', String(utilization));
+  utilTrack.setAttribute('aria-valuetext', `${utilization}%`);
 
   // Update Fleet
   document.getElementById('fleetIdle').textContent = data.fleet.idle;
@@ -2039,9 +2312,9 @@ function renderTickData(data) {
     ])];
     const passengers = Array.isArray(d.passengers) ? d.passengers : [];
     const statusLabels = {
-      "IDLE": "<span style='color:#22C55E;font-weight:bold;'>Đang rảnh</span>",
-      "EN_ROUTE_PICKUP": "<span style='color:#F59E0B;font-weight:bold;'>Đang đi đón khách</span>",
-      "OCCUPIED": "<span style='color:#3B82F6;font-weight:bold;'>Đang chở khách</span>"
+      "IDLE": "Đang rảnh",
+      "EN_ROUTE_PICKUP": "Đang đi đón khách",
+      "OCCUPIED": "Đang chở khách"
     };
     const driverActivity = pickupRequests.length && passengers.length
       ? `Đang chở khách ${passengers.join(', ')}; ghé đón ${pickupRequests.join(', ')}`
@@ -2054,20 +2327,20 @@ function renderTickData(data) {
     const tooltipContent = `<b>${d.id}</b> • <b>${speed} km/h</b><br>${driverActivity}`;
 
     const popupContent = `
-      <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:12px;color:#1F2937;line-height:1.6;min-width:210px;">
-        <div style="font-size:14px;font-weight:bold;color:#00B14F;border-bottom:1px solid #E5E7EB;padding-bottom:4px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
-          <span>Tài xế: ${d.id}</span>
-          <span style="font-size:10px;padding:2px 6px;border-radius:10px;background:#E5E7EB;color:#374151;">${d.status}</span>
+      <div class="driver-popup">
+        <div class="driver-popup-header">
+          <strong>Tài xế: ${d.id}</strong>
+          <span class="driver-popup-status">${statusLabels[d.status] || d.status}</span>
         </div>
-        <div><strong>Trạng thái:</strong> ${driverActivity}</div>
-        ${pickupRequests.length ? `<div><strong>Đang đón:</strong> ${pickupRequests.join(', ')}</div>` : ''}
-        <div style="margin:6px 0;background:#EFF6FF;border-left:3px solid #3B82F6;padding:5px 8px;border-radius:3px;">
-          <strong style="color:#1E40AF;">Vận tốc di chuyển:</strong>
-          <span style="font-size:14px;font-weight:bold;color:#2563EB;margin-left:4px;">${speed} km/h</span>
+        <div class="driver-popup-row"><span>Hoạt động</span><strong>${driverActivity}</strong></div>
+        ${pickupRequests.length ? `<div class="driver-popup-row"><span>Đang đón</span><strong>${pickupRequests.join(', ')}</strong></div>` : ''}
+        <div class="driver-popup-speed">
+          <span>Vận tốc di chuyển</span>
+          <strong>${speed} km/h</strong>
         </div>
-        <div><strong>Khách trên xe:</strong> ${passengers.length ? passengers.join(', ') : 'Không có'}</div>
-        <div><strong>Quãng đường đã đi:</strong> ${d.distance_km || 0} km</div>
-        <div><strong>Thời gian hoạt động:</strong> ${d.busy_time || 0}s</div>
+        <div class="driver-popup-row"><span>Khách trên xe</span><strong>${passengers.length ? passengers.join(', ') : 'Không có'}</strong></div>
+        <div class="driver-popup-row"><span>Quãng đường đã đi</span><strong>${d.distance_km || 0} km</strong></div>
+        <div class="driver-popup-row"><span>Thời gian hoạt động</span><strong>${d.busy_time || 0}s</strong></div>
       </div>
     `;
 
@@ -2088,10 +2361,9 @@ function renderTickData(data) {
   const driverListEl = document.getElementById('driverList');
   if (driverListEl && data.drivers && data.drivers.length > 0) {
     document.getElementById('fleetTotalCount').textContent = `${data.drivers.length} xe`;
+    const driverListScrollTop = driverListEl.scrollTop;
     driverListEl.innerHTML = data.drivers.map(d => {
       const speed = (d.speed_kmh !== undefined) ? d.speed_kmh : (d.status === "IDLE" ? 0 : 30);
-      const isMoving = speed > 0;
-      const speedColor = isMoving ? "#38BDF8" : "#64748B";
       const activeForDriver = (data.active || []).filter(request => request.driver_id === d.id);
       const pickupRequests = [...new Set([
         ...(Array.isArray(d.pickup_requests) ? d.pickup_requests : []),
@@ -2107,19 +2379,23 @@ function renderTickData(data) {
           : d.status === "EN_ROUTE_PICKUP"
             ? pickupRequests.length ? `Đi đón ${pickupRequests.join(', ')}` : "Đi đón"
             : hasPassengers ? `Chở ${d.passengers.join(', ')}` : "Chở khách";
+      const statusClass = d.status === "IDLE"
+        ? "is-idle"
+        : d.status === "EN_ROUTE_PICKUP"
+          ? "is-pickup"
+          : "is-occupied";
       return `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg-card-sub);border-radius:6px;font-size:12px;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span aria-hidden="true" style="width:7px;height:7px;border-radius:50%;background:${d.status === "IDLE" ? "#22C55E" : d.status === "EN_ROUTE_PICKUP" ? "#F59E0B" : "#3B82F6"};"></span>
-            <strong style="color:var(--text-primary);">${d.id}</strong>
-            <span style="color:var(--text-muted);font-size:10px;">(${statusLabel})</span>
+        <div class="driver-detail-row">
+          <div class="driver-detail-identity">
+            <span class="driver-detail-dot ${statusClass}" aria-hidden="true"></span>
+            <strong class="driver-detail-id">${d.id}</strong>
           </div>
-          <div style="font-weight:700;color:${speedColor};font-variant-numeric:tabular-nums;background:rgba(0,0,0,0.25);padding:2px 6px;border-radius:4px;">
-            ${speed} km/h
-          </div>
+          <span class="driver-detail-speed">${speed} km/h</span>
+          <span class="driver-detail-status" title="${statusLabel}">${statusLabel}</span>
         </div>
       `;
     }).join('');
+    driverListEl.scrollTop = driverListScrollTop;
   }
 
   // Keep matched requests visible so hovering any passenger reveals their destination.
@@ -2308,8 +2584,12 @@ document.getElementById('btnPause').addEventListener('click', async () => {
 document.querySelectorAll('.strat-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (isRunning) return;
-    document.querySelectorAll('.strat-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.strat-btn').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
     btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
     currentStrategy = btn.dataset.strategy;
     document.getElementById('strategyDesc').innerHTML = STRATEGY_DESCRIPTIONS[currentStrategy];
   });
@@ -2571,6 +2851,21 @@ window.addEventListener('DOMContentLoaded', () => {
   initMap();
   initChart();
   connectWebSocket();
+
+  const mapContainer = document.getElementById('mapContainer');
+  const refreshMapSize = () => {
+    if (typeof map !== 'undefined' && map) {
+      map.invalidateSize({ pan: false });
+    }
+  };
+
+  requestAnimationFrame(refreshMapSize);
+  setTimeout(refreshMapSize, 100);
+  window.addEventListener('resize', refreshMapSize);
+
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(refreshMapSize).observe(mapContainer);
+  }
 });
 </script>
 </body>

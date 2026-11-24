@@ -15,9 +15,9 @@
 
   <style>
     :root {
-      --grab-green: #00B14F;
-      --grab-green-dark: #008B3E;
-      --grab-green-light: #E8F8F0;
+      --grab-green: #192A63;
+      --grab-green-dark: #101E48;
+      --grab-green-light: #E9ECF5;
       --grab-border: #E2E8F0;
       --grab-text-primary: #1E293B;
       --grab-text-muted: #64748B;
@@ -156,7 +156,7 @@
       outline: none;
       border-color: var(--grab-green);
       background: #FFFFFF;
-      box-shadow: 0 0 0 3px rgba(0, 177, 79, 0.15);
+      box-shadow: 0 0 0 3px rgba(25, 42, 99, 0.15);
     }
     .form-select {
       padding: 12px 14px;
@@ -186,7 +186,7 @@
       justify-content: center;
       gap: 8px;
       transition: background 0.2s, transform 0.1s;
-      box-shadow: 0 4px 14px rgba(0, 177, 79, 0.3);
+      box-shadow: 0 4px 14px rgba(25, 42, 99, 0.3);
     }
     .btn-primary:hover { background: var(--grab-green-dark); }
     .btn-primary:active { transform: scale(0.98); }
@@ -230,7 +230,7 @@
     .service-card.selected {
       border-color: var(--grab-green);
       background: var(--grab-green-light);
-      box-shadow: 0 4px 12px rgba(0, 177, 79, 0.15);
+      box-shadow: 0 4px 12px rgba(25, 42, 99, 0.15);
     }
     .service-top { display: flex; align-items: center; justify-content: space-between; }
     .service-icon { font-size: 24px; }
@@ -241,7 +241,7 @@
     /* ESTIMATE PREVIEW BOX */
     .estimate-box {
       background: var(--grab-green-light);
-      border: 1px solid rgba(0, 177, 79, 0.3);
+      border: 1px solid rgba(25, 42, 99, 0.3);
       border-radius: var(--radius-md);
       padding: 14px 16px;
       display: flex;
@@ -615,8 +615,7 @@
           <button class="btn-primary" id="btnReloadStatus" style="width:100%; padding:12px; font-size:14px; background:var(--grab-green);" onclick="checkBookingStatus(true)">
             <span id="reloadIcon" style="display:inline-block;">🔄</span> <span id="reloadText">Kiểm tra tài xế nhận cuốc (Làm mới)</span>
           </button>
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:0 4px;">
-            <span style="font-size:11px; color:var(--grab-green-dark); font-weight:600;" id="realtimeLiveText">🟢 Đang đồng bộ thời gian thực (2s)</span>
+          <div style="display:flex; justify-content:flex-end; align-items:center; padding:0 4px;">
             <button class="btn-secondary" style="color:var(--grab-red); border-color:#FECACA; padding:6px 12px; font-size:12px;" onclick="cancelBookingManual()">
               <span>Hủy chuyến</span>
             </button>
@@ -999,7 +998,7 @@
       // Tuyến đường
       if (booking.trip_route_coords && booking.trip_route_coords.length > 0) {
         routeLine = L.polyline(booking.trip_route_coords, {
-          color: '#00B14F',
+          color: '#192A63',
           weight: 5,
           opacity: 0.85
         }).addTo(passengerMap);
@@ -1024,7 +1023,7 @@
 
         if (state.secondsRemaining <= 0) {
           clearInterval(state.countdownTimer);
-          handleTripTimedOut();
+          checkBookingStatus(false);
         }
       }, 1000);
     }
@@ -1037,29 +1036,43 @@
       if (el) el.innerText = str;
     }
 
-    function handleTripTimedOut() {
+    function handleTripCancelled(reason) {
       clearInterval(statusPollingTimer);
       document.getElementById('stateWaiting').style.display = 'none';
       document.getElementById('stateMatched').style.display = 'none';
       document.getElementById('stateFinished').style.display = 'flex';
 
-      document.getElementById('finishIcon').innerText = '⏰';
-      document.getElementById('finishTitle').innerText = 'Chuyến đi tự động hủy sau 5 phút';
-      document.getElementById('finishDesc').innerText = 'Rất tiếc, hiện tại không có tài xế nào nhận chuyến trong khu vực. Vui lòng thử lại sau ít phút!';
+      const automatic = (reason || '').toLowerCase().includes('5 phút')
+        || (reason || '').toLowerCase().includes('tự động hủy');
+      document.getElementById('finishIcon').innerText = automatic ? '⏰' : '❌';
+      document.getElementById('finishTitle').innerText = automatic
+        ? 'Chuyến đi tự động hủy sau 5 phút'
+        : 'Bạn đã hủy chuyến đi';
+      document.getElementById('finishDesc').innerText = automatic
+        ? 'Rất tiếc, hiện tại không có tài xế nào nhận chuyến trong khu vực. Vui lòng thử lại sau ít phút!'
+        : 'Yêu cầu đặt xe của bạn đã được hủy thành công.';
     }
 
     async function cancelBookingManual() {
       if (!confirm("Bạn có chắc chắn muốn hủy chuyến xe này?")) return;
-      clearInterval(state.countdownTimer);
-      clearInterval(statusPollingTimer);
-      
-      document.getElementById('stateWaiting').style.display = 'none';
-      document.getElementById('stateMatched').style.display = 'none';
-      document.getElementById('stateFinished').style.display = 'flex';
+      if (!state.activeBookingId || !state.customer || !state.customer.customer_id) return;
 
-      document.getElementById('finishIcon').innerText = '❌';
-      document.getElementById('finishTitle').innerText = 'Bạn đã hủy chuyến đi';
-      document.getElementById('finishDesc').innerText = 'Yêu cầu đặt xe của bạn đã được hủy thành công.';
+      try {
+        const res = await fetch(`/api/trip/${state.activeBookingId}/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer_id: state.customer.customer_id }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || 'Không thể hủy chuyến. Vui lòng thử lại.');
+          return;
+        }
+        clearInterval(state.countdownTimer);
+        handleTripCancelled(data.cancel_reason);
+      } catch (err) {
+        alert('Không thể kết nối máy chủ để hủy chuyến. Vui lòng thử lại.');
+      }
     }
 
     function startNewBookingFlow() {
@@ -1115,7 +1128,7 @@
         } else if (data.status === 'CANCELLED') {
           clearInterval(state.countdownTimer);
           clearInterval(statusPollingTimer);
-          handleTripTimedOut();
+          handleTripCancelled(data.cancel_reason);
         }
       } catch (err) {
         console.error("Lỗi cập nhật trạng thái chuyến:", err);
@@ -1173,7 +1186,7 @@
       // Cập nhật trạng thái cuốc xe theo thời gian thực
       if ((msg.type === 'event_trip_action' || msg.type === 'portal_booking_picked_up' || msg.type === 'portal_booking_completed') && msg.booking_id === state.activeBookingId) {
         if (msg.type === 'portal_booking_picked_up') {
-          onTripActionUpdate({ action: 'start_trip' });
+          onTripActionUpdate({ action: 'arrived_pickup' });
         } else if (msg.type === 'portal_booking_completed') {
           onTripActionUpdate({ action: 'complete_trip' });
         } else {
@@ -1185,7 +1198,7 @@
       if ((msg.type === 'event_booking_timeout' || msg.type === 'portal_booking_cancelled') && msg.booking_id === state.activeBookingId) {
         clearInterval(state.countdownTimer);
         clearInterval(statusPollingTimer);
-        handleTripTimedOut();
+        handleTripCancelled(msg.reason);
       }
     }
 
@@ -1233,7 +1246,7 @@
         document.getElementById('stateFinished').style.display = 'flex';
         document.getElementById('finishIcon').innerText = '🎉';
         document.getElementById('finishTitle').innerText = 'Chuyến đi hoàn thành!';
-        document.getElementById('finishDesc').innerText = 'Cảm ơn bạn đã lựa chọn Grab. Chúc bạn một ngày tốt lành!';
+        document.getElementById('finishDesc').innerText = 'Cảm ơn bạn đã lựa chọn UETransport. Chúc bạn một ngày tốt lành!';
       }
     }
   </script>
